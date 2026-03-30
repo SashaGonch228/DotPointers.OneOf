@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -118,16 +119,52 @@ namespace DotPointers.OneOf.Generator
 			{
 				sb.AppendLine("\t\t#pragma warning disable CS8618");
 			}
+
+			string masterParams;
+			if (layout == OneOfLayoutKind.Composition)
+			{
+				masterParams = string.Join(", ", model.TypeArgs
+					.Select((t, i) => t.FullName != VoidType ? $"{t.FullName} v{i} = default" : "")
+					.Where(s => !string.IsNullOrEmpty(s)));
+			}
+			else if (layout == OneOfLayoutKind.Boxing)
+			{
+				masterParams = "object? value";
+			}
+			else
+			{
+				var parts = new List<string>();
+				if (hasRef) parts.Add("object? @ref = default");
+				if (hasVal) parts.Add($"{unionName} data = default");
+				masterParams = string.Join(", ", parts);
+			}
+
+			sb.AppendLine($"\t\t{Inline}");
+			sb.AppendLine($"\t\tprivate {model.Name}({enumName} kind, {masterParams})");
+			sb.AppendLine("\t\t{");
+			sb.AppendLine("\t\t\tthis._kind = kind;");
+
+			if (layout == OneOfLayoutKind.Composition)
+			{
+				for (int i = 0; i < count; i++)
+					if (model.TypeArgs[i].FullName != VoidType) sb.AppendLine($"\t\t\tthis._v{i} = v{i};");
+			}
+			else if (layout == OneOfLayoutKind.Boxing)
+			{
+				sb.AppendLine("\t\t\tthis._value = value;");
+			}
+			else
+			{
+				if (hasRef) sb.AppendLine("\t\t\tthis._ref = @ref;");
+				if (hasVal) sb.AppendLine("\t\t\tthis._data = data;");
+			}
+			sb.AppendLine("\t\t}");
+			sb.AppendLine();
+
 			if (!model.AllowEmpty)
 			{
-				if (!isClass)
-				{
-					sb.AppendLine($"\t\tpublic {model.Name}() {{ Unsafe.SkipInit(out this); throw new ArgumentException(); }}");
-				}
-				else
-				{
-					sb.AppendLine($"\t\tpublic {model.Name}() {{ throw new ArgumentException(); }}");
-				}
+				string emptyArgs = layout == OneOfLayoutKind.Boxing ? "null" : "default";
+				sb.AppendLine($"\t\tpublic {model.Name}() : this(({enumName})0, {emptyArgs}) {{ throw new ArgumentException(\"Empty union not allowed\"); }}");
 				sb.AppendLine();
 			}
 
@@ -144,67 +181,88 @@ namespace DotPointers.OneOf.Generator
 				{
 					int i = indices[0];
 					var field = model.FieldNames[i];
-					sb.AppendLine($"\t\tpublic {model.Name}({type.FullName} value)");
-					sb.AppendLine("\t\t{");
-					if (!isClass)
+
+					if (layout != OneOfLayoutKind.ExplicitUnion)
 					{
-						sb.AppendLine("\t\t\tUnsafe.SkipInit(out this);");
+						string callArgs = GenerateMasterCallArgs(type, i, layout, enumName, field);
+						sb.AppendLine($"\t\t{Inline}");
+						sb.AppendLine($"\t\tpublic {model.Name}({type.FullName} value) : {callArgs} {{ }}");
 					}
-					GenerateConstructorBody(sb, type, i, layout);
-					sb.AppendLine($"\t\t\tthis._kind = {enumName}.{field};");
-					sb.AppendLine("\t\t}");
+					else
+					{
+						sb.AppendLine($"\t\t{Inline}");
+						sb.AppendLine($"\t\tpublic {model.Name}({type.FullName} value)");
+						sb.AppendLine("\t\t{");
+						sb.AppendLine($"\t\t\tthis._kind = {enumName}.{model.FieldNames[i]};");
+						if (hasRef)
+						{
+							sb.AppendLine($"\t\t\tthis._ref = {(type.IsReferenceType ? "value" : "null")};");
+						}
+						if (hasVal)
+						{
+							sb.AppendLine($"\t\t\tUnsafe.SkipInit(out this._data);");
+							if (!type.IsReferenceType)
+							{
+								sb.AppendLine($"\t\t\tthis._data._v{i} = value;");
+							}
+						}
+						sb.AppendLine("\t\t}");
+					}
 				}
 				else
 				{
+					sb.AppendLine($"\t\t{Inline}");
 					sb.AppendLine($"\t\tpublic {model.Name}({type.FullName} value, {enumName} kind)");
 					sb.AppendLine("\t\t{");
-					if (!isClass)
-					{
-						sb.AppendLine("\t\t\tUnsafe.SkipInit(out this);");
-					}
+					if (!isClass) sb.AppendLine("\t\t\tthis = default;");
 
 					sb.Append("\t\t\tif (");
-					sb.Append(string.Join(" && ", indices.Select(i => $"kind != {enumName}.{model.FieldNames[i]}")));
-					sb.AppendLine(")");
-					sb.AppendLine($"\t\t\t{{");
-					sb.AppendLine($"\t\t\t\tthrow new ArgumentException($\"Kind {{kind}} is not valid for type {type.ShortName}\");");
-					sb.AppendLine($"\t\t\t}}");
-					sb.AppendLine();
+					sb.Append(string.Join(" && ", indices.Select(idx => $"kind != {enumName}.{model.FieldNames[idx]}")));
+					sb.AppendLine(") throw new ArgumentException();\n");
 
 					for (int i = 0; i < indices.Count; i++)
 					{
-						sb.AppendLine($"\t\t\t{(i > 0 ? "else " : string.Empty)}if (kind == {enumName}.{model.FieldNames[indices[i]]})");
-						sb.AppendLine("\t\t\t{");
-
-						sb.Append("\t");
-						GenerateConstructorBody(sb, type, indices[i], layout);
-
+						int idx = indices[i];
+						sb.AppendLine($"\t\t\t{(i > 0 ? "else " : "")}if (kind == {enumName}.{model.FieldNames[idx]}) {{");
+						GenerateConstructorBodyLegacy(sb, type, idx, layout);
 						sb.AppendLine("\t\t\t}");
 					}
-
 					sb.AppendLine("\t\t\tthis._kind = kind;");
 					sb.AppendLine("\t\t}");
 				}
 				sb.AppendLine();
 			}
 
-			void GenerateConstructorBody(StringBuilder builder, GenerationModel.TypeInfoModel t, int index, OneOfLayoutKind l)
+			// Вспомогательная функция для сборки аргументов : this(...)
+			string GenerateMasterCallArgs(GenerationModel.TypeInfoModel t, int index, OneOfLayoutKind l, string eName, string fName)
 			{
+				if (l == OneOfLayoutKind.Boxing)
+					return $"this({eName}.{fName}, value: value)";
+
+				if (l == OneOfLayoutKind.Composition)
+					return $"this({eName}.{fName}, v{index}: value)";
+
+				// ExplicitUnion
+				if (t.IsReferenceType)
+					return hasVal ? $"this({eName}.{fName}, @ref: value, data: default)" : $"this({eName}.{fName}, @ref: value)";
+
+				return hasRef
+					? $"this({eName}.{fName}, @ref: default, data: new {unionName} {{ _v{index} = value }})"
+					: $"this({eName}.{fName}, data: new {unionName} {{ _v{index} = value }})";
+			}
+
+			void GenerateConstructorBodyLegacy(StringBuilder builder, GenerationModel.TypeInfoModel t, int index, OneOfLayoutKind l)
+			{
+				string indent = "\t\t\t\t";
 				if (t.IsReferenceType)
 				{
-					builder.AppendLine("\t\t\tif (value == null) { throw new ArgumentNullException(nameof(value)); }");
-					if (l == OneOfLayoutKind.Boxing) { builder.AppendLine("\t\t\tthis._value = value;"); }
-					else if (l == OneOfLayoutKind.Composition) { builder.AppendLine($"\t\t\tthis._v{index} = value;"); }
-					else { builder.AppendLine("\t\t\tthis._ref = value;"); }
+					builder.AppendLine($"{indent}if (value == null) throw new ArgumentNullException();");
+					builder.AppendLine(l == OneOfLayoutKind.Composition ? $"{indent}this._v{index} = value;" : $"{indent}this._ref = value;");
 				}
-				else
+				else if (t.FullName != VoidType)
 				{
-					if (t.FullName != VoidType)
-					{
-						if (l == OneOfLayoutKind.Boxing) { builder.AppendLine("\t\t\tthis._value = value;"); }
-						else if (l == OneOfLayoutKind.Composition) { builder.AppendLine($"\t\t\tthis._v{index} = value;"); }
-						else { builder.AppendLine($"\t\t\tUnsafe.As<{unionName}, {t.FullName}>(ref Unsafe.AsRef(in _data)) = value;"); }
-					}
+					if (l == OneOfLayoutKind.Composition) builder.AppendLine($"{indent}this._v{index} = value;");
+					else builder.AppendLine($"{indent}Unsafe.As<{unionName}, {t.FullName}>(ref Unsafe.AsRef(in _data)) = value;");
 				}
 			}
 
@@ -212,7 +270,6 @@ namespace DotPointers.OneOf.Generator
 			{
 				sb.AppendLine("\t\t#pragma warning restore CS8618");
 			}
-
 			#endregion
 
 			#region Tuple Conversion 
@@ -271,38 +328,8 @@ namespace DotPointers.OneOf.Generator
 			{
 				var type = model.TypeArgs[i];
 				var field = model.FieldNames[i];
-				sb.Append($"\t\tprivate{read} {type.FullName} {field}Force => ");
+				sb.Append($"\t\tprivate{read} {type.FullName} {field}Force => {UnsafeGet(i)};");
 
-				if (layout == OneOfLayoutKind.Boxing)
-				{
-					if (model.TypeArgs[i].FullName != VoidType)
-					{
-						sb.Append($"({type.FullName})_value!;");
-					}
-					else
-					{
-						sb.Append("default;");
-					}
-				}
-				else if (layout == OneOfLayoutKind.Composition)
-				{
-					if (model.TypeArgs[i].FullName != VoidType)
-					{
-						sb.Append($"_v{i};");
-					}
-					else
-					{
-						sb.Append("default;");
-					}
-				}
-				else if (type.IsReferenceType)
-				{
-					sb.Append($"({type.FullName})_ref!;");
-				}
-				else
-				{
-					sb.Append($"Unsafe.As<{unionName}, {type.FullName}>(ref Unsafe.AsRef(in _data));");
-				}
 				sb.AppendLine();
 			}
 			sb.AppendLine();
@@ -325,9 +352,10 @@ namespace DotPointers.OneOf.Generator
 			{
 				var type = model.TypeArgs[i];
 				var field = model.FieldNames[i];
-				sb.AppendLine($"\t\tpublic{read} {type.FullName} {field}           => _kind == {enumName}.{field} ? {field}Force : throw new InvalidOperationException($\"Cannot access {field}. Current kind is {{_kind}}\");");
-				sb.AppendLine($"\t\tpublic{read} {type.FullName}? {field}OrDefault => _kind == {enumName}.{field} ? {field}Force : default;");
+				sb.AppendLine($"\t\tpublic{read} {type.FullName} {field}           => _kind == {enumName}.{field} ? {UnsafeGet(i)} : ThrowIfInvalid<{type.FullName}>({enumName}.{field}, _kind);");
+				sb.AppendLine($"\t\tpublic{read} {type.FullName}? {field}OrDefault => _kind == {enumName}.{field} ? {UnsafeGet(i)}: default;");
 			}
+			sb.AppendLine($"\t\t[global::System.Diagnostics.CodeAnalysis.DoesNotReturn] [MethodImpl(MethodImplOptions.NoInlining)] private{read} TTTTTError ThrowIfInvalid<TTTTTError>({enumName} call, {enumName} real) => throw new InvalidOperationException($\"Cannot access {{call}}. Current kind is {{_kind}}\");");
 			sb.AppendLine();
 
 			if (model.AllowEmpty)
@@ -440,7 +468,7 @@ namespace DotPointers.OneOf.Generator
 			for (int i = 0; i < count; i++)
 			{
 				var field = model.FieldNames[i];
-				sb.AppendLine($"\t\t\t\tcase {enumName}.{model.FieldNames[i]}: {{ On{field}.Invoke({model.FieldNames[i]}); break; }}");
+				sb.AppendLine($"\t\t\t\tcase {enumName}.{model.FieldNames[i]}: {{ On{field}.Invoke({model.FieldNames[i]}Force); break; }}");
 			}
 			if (model.AllowEmpty)
 			{
@@ -478,7 +506,7 @@ namespace DotPointers.OneOf.Generator
 			for (int i = 0; i < count; i++)
 			{
 				var field = model.FieldNames[i];
-				sb.AppendLine($"\t\t\t\tcase {enumName}.{model.FieldNames[i]}: {{ return On{field}.Invoke({model.FieldNames[i]}); }}");
+				sb.AppendLine($"\t\t\t\tcase {enumName}.{model.FieldNames[i]}: {{ return On{field}.Invoke({model.FieldNames[i]}Force); }}");
 			}
 			if (model.AllowEmpty)
 			{
@@ -774,6 +802,30 @@ namespace DotPointers.OneOf.Generator
 
 			sb.Append("}");
 			return sb.ToString();
+
+			string UnsafeGet(int i)
+			{
+				var type = model.TypeArgs[i];
+
+				if (model.TypeArgs[i].FullName == VoidType) { return "default"; }
+
+				if (layout == OneOfLayoutKind.Boxing)
+				{
+					return $"({type.FullName})_value!";
+				}
+				else if (layout == OneOfLayoutKind.Composition)
+				{
+					return $"_v{i}";
+				}
+				else if (type.IsReferenceType)
+				{
+					return $"({type.FullName})_ref!";
+				}
+				else
+				{
+					return $"_data._v{i}";
+				}
+			}
 		}
 
 		public static string GenerateSystemJsonSource(GenerationModel model)

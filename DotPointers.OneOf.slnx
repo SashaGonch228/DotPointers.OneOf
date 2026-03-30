@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="Dotpointers.OneOf.Benchmark/Dotpointers.OneOf.Benchmark.csproj" Id="ceed37ac-3f72-4981-8d3c-220101ec448d" />
   <Project Path="DotPointers.OneOf.Generator/DotPointers.OneOf.Generator.csproj" />
   <Project Path="DotPointers.OneOf.Samples/DotPointers.OneOf.Samples.csproj" Id="f7aae55a-0eca-48bc-9f65-5c7efc0009cb" />
   <Project Path="DotPointers.OneOf/DotPointers.OneOf.csproj" />
