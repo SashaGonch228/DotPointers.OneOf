@@ -14,6 +14,8 @@ By leveraging modern C# features and low-level memory management, it provides a 
 
 - Comprehensive API: Automatically generates Match, Switch, TryPick, Map, and Async methods (ValueTask support).
 
+- Serialization API: You can genetate System.Text.Json, Newtonsoft.Json and MemoryPack serializators via just add attributes 
+
 ### 🚀 Quick Start
 
 Define your union by implementing the IOneOf interface and marking the partial struct with the [GenerateOneOf] attribute.

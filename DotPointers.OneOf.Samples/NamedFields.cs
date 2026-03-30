@@ -19,8 +19,8 @@ public static class NamedFields
 			level => Console.WriteLine($"Level: {level}")
 		);
 
-		// TryPick example
-		if (config.TryPickSourceFile(out var source, out _))
+		// TryGet example
+		if (config.TryGetSourceFile(out var source))
 		{
 			Console.WriteLine($"Processing source file: {source}");
 		}
