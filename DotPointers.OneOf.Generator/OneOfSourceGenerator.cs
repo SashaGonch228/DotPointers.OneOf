@@ -13,6 +13,7 @@ namespace DotPointers.OneOf.Generator
 		private const string Inline = "[MethodImpl(MethodImplOptions.AggressiveInlining)]";
 		private const string VoidType = "global::DotPointers.OneOf.Void";
 		private const string CompilerGeneratedAttribute = "[CompilerGenerated]";
+		private const string ThrowHelper = "OneOfThrowHelper";
 
 		public static string GenerateSource(GenerationModel model)
 		{
@@ -23,7 +24,7 @@ namespace DotPointers.OneOf.Generator
 			int count = model.TypeArgs.Length;
 			string enumName = $"OneOf{model.Name}";
 			string unionName = $"__DataUnion_{model.Name}";
-			var sb = new StringBuilder(4096);
+			var sb = new IndentedWriter();
 
 			bool hasRef = model.TypeArgs.Any(static t => t.IsReferenceType);
 			bool hasVal = model.TypeArgs.Any(static t => !t.IsReferenceType);
@@ -49,765 +50,787 @@ namespace DotPointers.OneOf.Generator
 			#endregion
 
 			sb.AppendLine($"namespace {model.Namespace}");
-			sb.AppendLine("{");
 
-			#region SubStruct
-			if (layout == OneOfLayoutKind.ExplicitUnion && hasVal)
+			using (sb.EnterScope(false))
 			{
-				sb.AppendLine("\t[StructLayout(LayoutKind.Explicit)]");
-				sb.AppendLine($"\tinternal struct {unionName}");
-				sb.AppendLine("\t{");
-				for (int i = 0; i < count; i++)
+				#region SubStruct
+				if (layout == OneOfLayoutKind.ExplicitUnion && hasVal)
 				{
-					if (!model.TypeArgs[i].IsReferenceType && model.TypeArgs[i].FullName != VoidType)
+					sb.AppendLine("[StructLayout(LayoutKind.Explicit)]");
+					sb.AppendLine($"internal struct {unionName}");
+					using (sb.EnterScope())
 					{
-						sb.AppendLine($"\t\t[FieldOffset(0)] public {model.TypeArgs[i].FullName} _v{i};");
+						for (int i = 0; i < count; i++)
+						{
+							if (!model.TypeArgs[i].IsReferenceType && model.TypeArgs[i].FullName != VoidType)
+							{
+								sb.AppendLine($"[FieldOffset(0)] public {model.TypeArgs[i].FullName} _v{i};");
+							}
+						}
 					}
 				}
-				sb.AppendLine("\t}");
-				sb.AppendLine();
-			}
-			#endregion
+				#endregion
 
-			#region Definition
+				#region Definition
 
-			sb.AppendLine($"\t[DebuggerDisplay(\"{{DebuggerDisplay,nq}}\")]");
-			sb.AppendLine($"\t{CompilerGeneratedAttribute}");
-			sb.Append($"\t{model.TypeKind.Replace("struct", "partial struct").Replace("class", "partial class")} {model.FullName}");
-			if (!model.IsRef)
-			{
-				sb.Append($" : IEquatable<{model.FullName}>");
-			}
-			sb.AppendLine();
-			sb.AppendLine("\t{");
-
-			sb.AppendLine($"\t\tprivate readonly {enumName} _kind;");
-
-			if (layout == OneOfLayoutKind.Boxing)
-			{
-				sb.AppendLine($"\t\tprivate readonly object? _value;");
-			}
-			else if (layout == OneOfLayoutKind.Composition)
-			{
-				for (int i = 0; i < count; i++)
+				sb.AppendLine($"[DebuggerDisplay(\"{{DebuggerDisplay,nq}}\")]");
+				sb.AppendLine(CompilerGeneratedAttribute);
+				sb.AppendIntend();
+				sb.Append($"{model.TypeKind.Replace("struct", "partial struct").Replace("class", "partial class")} {model.FullName}");
+				if (!model.IsRef)
 				{
-					if (model.TypeArgs[i].FullName != VoidType)
+					sb.Append($" : IEquatable<{model.FullName}>");
+				}
+				sb.AppendLine();
+				using (sb.EnterScope(false))
+				{
+					sb.AppendLine($"private readonly {enumName} _kind;");
+
+					if (layout == OneOfLayoutKind.Boxing)
 					{
-						sb.AppendLine($"\t\tprivate readonly {model.TypeArgs[i].FullName} _v{i};");
+						sb.AppendLine("private readonly object? _value;");
 					}
-				}
-			}
-			else
-			{
-				if (hasRef)
-				{
-					sb.AppendLine($"\t\tprivate readonly object? _ref;");
-				}
-				if (hasVal)
-				{
-					sb.AppendLine("\t#pragma warning disable CS0649");
-					sb.AppendLine($"\t\tprivate readonly {unionName} _data;");
-					sb.AppendLine("\t#pragma warning restore CS0649");
-				}
-			}
-			sb.AppendLine();
-
-			#endregion
-
-			#region Constructors
-			if (isClass)
-			{
-				sb.AppendLine("\t\t#pragma warning disable CS8618");
-			}
-
-			string masterParams;
-			if (layout == OneOfLayoutKind.Composition)
-			{
-				masterParams = string.Join(", ", model.TypeArgs
-					.Select((t, i) => t.FullName != VoidType ? $"{t.FullName} v{i} = default" : "")
-					.Where(s => !string.IsNullOrEmpty(s)));
-			}
-			else if (layout == OneOfLayoutKind.Boxing)
-			{
-				masterParams = "object? value";
-			}
-			else
-			{
-				var parts = new List<string>();
-				if (hasRef) parts.Add("object? @ref = default");
-				if (hasVal) parts.Add($"{unionName} data = default");
-				masterParams = string.Join(", ", parts);
-			}
-
-			sb.AppendLine($"\t\t{Inline}");
-			sb.AppendLine($"\t\tprivate {model.Name}({enumName} kind, {masterParams})");
-			sb.AppendLine("\t\t{");
-			sb.AppendLine("\t\t\tthis._kind = kind;");
-
-			if (layout == OneOfLayoutKind.Composition)
-			{
-				for (int i = 0; i < count; i++)
-					if (model.TypeArgs[i].FullName != VoidType) sb.AppendLine($"\t\t\tthis._v{i} = v{i};");
-			}
-			else if (layout == OneOfLayoutKind.Boxing)
-			{
-				sb.AppendLine("\t\t\tthis._value = value;");
-			}
-			else
-			{
-				if (hasRef) sb.AppendLine("\t\t\tthis._ref = @ref;");
-				if (hasVal) sb.AppendLine("\t\t\tthis._data = data;");
-			}
-			sb.AppendLine("\t\t}");
-			sb.AppendLine();
-
-			if (!model.AllowEmpty)
-			{
-				string emptyArgs = layout == OneOfLayoutKind.Boxing ? "null" : "default";
-				sb.AppendLine($"\t\tpublic {model.Name}() : this(({enumName})0, {emptyArgs}) {{ throw new ArgumentException(\"Empty union not allowed\"); }}");
-				sb.AppendLine();
-			}
-
-			var typeGroups = model.TypeArgs
-				.Select((type, index) => (type, index))
-				.GroupBy(x => x.type.FullName);
-
-			foreach (var group in typeGroups)
-			{
-				var type = group.First().type;
-				var indices = group.Select(x => x.index).ToList();
-
-				if (indices.Count == 1)
-				{
-					int i = indices[0];
-					var field = model.FieldNames[i];
-
-					if (layout != OneOfLayoutKind.ExplicitUnion)
+					else if (layout == OneOfLayoutKind.Composition)
 					{
-						string callArgs = GenerateMasterCallArgs(type, i, layout, enumName, field);
-						sb.AppendLine($"\t\t{Inline}");
-						sb.AppendLine($"\t\tpublic {model.Name}({type.FullName} value) : {callArgs} {{ }}");
+						for (int i = 0; i < count; i++)
+						{
+							if (model.TypeArgs[i].FullName != VoidType)
+							{
+								sb.AppendLine($"private readonly {model.TypeArgs[i].FullName} _v{i};");
+							}
+						}
 					}
 					else
 					{
-						sb.AppendLine($"\t\t{Inline}");
-						sb.AppendLine($"\t\tpublic {model.Name}({type.FullName} value)");
-						sb.AppendLine("\t\t{");
-						sb.AppendLine($"\t\t\tthis._kind = {enumName}.{model.FieldNames[i]};");
 						if (hasRef)
 						{
-							sb.AppendLine($"\t\t\tthis._ref = {(type.IsReferenceType ? "value" : "null")};");
+							sb.AppendLine("private readonly object? _ref;");
 						}
 						if (hasVal)
 						{
-							sb.AppendLine($"\t\t\tUnsafe.SkipInit(out this._data);");
-							if (!type.IsReferenceType)
+							sb.AppendLine("#pragma warning disable CS0649");
+							sb.AppendLine($"private readonly {unionName} _data;");
+							sb.AppendLine("#pragma warning restore CS0649");
+						}
+					}
+					sb.AppendLine();
+
+				#endregion
+
+					#region Constructors
+
+					if (isClass) { sb.AppendLine("#pragma warning disable CS8618"); }
+
+					string masterParams = layout switch
+					{
+						OneOfLayoutKind.Composition => string.Join(", ", model.TypeArgs.Select((t, i) => $"{t.FullName} v{i}")),
+						OneOfLayoutKind.Boxing => "object? value",
+						_ => (hasRef && hasVal) ? "object? @ref, " + unionName + " data" : hasRef ? "object? @ref" : unionName + " data"
+					};
+
+					sb.AppendLine(Inline);
+					sb.AppendLine($"private {model.Name}({enumName} kind, {masterParams})");
+
+					using (sb.EnterScope())
+					{
+						sb.AppendLine("this._kind = kind;");
+						if (layout == OneOfLayoutKind.Composition)
+						{
+							for (int i = 0; i < count; i++)
 							{
-								sb.AppendLine($"\t\t\tthis._data._v{i} = value;");
+								if (model.TypeArgs[i].FullName != VoidType)
+								{
+									sb.AppendLine($"this._v{i} = v{i};");
+								}
 							}
 						}
-						sb.AppendLine("\t\t}");
+						else if (layout == OneOfLayoutKind.Boxing)
+						{
+							sb.AppendLine("this._value = value;");
+						}
+						else if (layout == OneOfLayoutKind.ExplicitUnion)
+						{
+							if (hasRef)
+							{
+								sb.AppendLine("this._ref = @ref;");
+							}
+							if (hasVal)
+							{
+								sb.AppendLine("this._data = data;");
+							}
+						}
 					}
-				}
-				else
-				{
-					sb.AppendLine($"\t\t{Inline}");
-					sb.AppendLine($"\t\tpublic {model.Name}({type.FullName} value, {enumName} kind)");
-					sb.AppendLine("\t\t{");
-					if (!isClass) sb.AppendLine("\t\t\tthis = default;");
 
-					sb.Append("\t\t\tif (");
-					sb.Append(string.Join(" && ", indices.Select(idx => $"kind != {enumName}.{model.FieldNames[idx]}")));
-					sb.AppendLine(") throw new ArgumentException();\n");
-
-					for (int i = 0; i < indices.Count; i++)
+					if (!model.AllowEmpty)
 					{
-						int idx = indices[i];
-						sb.AppendLine($"\t\t\t{(i > 0 ? "else " : "")}if (kind == {enumName}.{model.FieldNames[idx]}) {{");
-						GenerateConstructorBodyLegacy(sb, type, idx, layout);
-						sb.AppendLine("\t\t\t}");
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public {model.Name}()");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine($"{ThrowHelper}.ThrowEmpty(nameof({model.FullName}));");
+						}
 					}
-					sb.AppendLine("\t\t\tthis._kind = kind;");
-					sb.AppendLine("\t\t}");
-				}
-				sb.AppendLine();
-			}
 
-			// Вспомогательная функция для сборки аргументов : this(...)
-			string GenerateMasterCallArgs(GenerationModel.TypeInfoModel t, int index, OneOfLayoutKind l, string eName, string fName)
-			{
-				if (l == OneOfLayoutKind.Boxing)
-					return $"this({eName}.{fName}, value: value)";
+					var typeGroups = model.TypeArgs
+						.Select((type, index) => (type, index))
+						.GroupBy(x => x.type.FullName);
 
-				if (l == OneOfLayoutKind.Composition)
-					return $"this({eName}.{fName}, v{index}: value)";
-
-				// ExplicitUnion
-				if (t.IsReferenceType)
-					return hasVal ? $"this({eName}.{fName}, @ref: value, data: default)" : $"this({eName}.{fName}, @ref: value)";
-
-				return hasRef
-					? $"this({eName}.{fName}, @ref: default, data: new {unionName} {{ _v{index} = value }})"
-					: $"this({eName}.{fName}, data: new {unionName} {{ _v{index} = value }})";
-			}
-
-			void GenerateConstructorBodyLegacy(StringBuilder builder, GenerationModel.TypeInfoModel t, int index, OneOfLayoutKind l)
-			{
-				string indent = "\t\t\t\t";
-				if (t.IsReferenceType)
-				{
-					builder.AppendLine($"{indent}if (value == null) throw new ArgumentNullException();");
-					builder.AppendLine(l == OneOfLayoutKind.Composition ? $"{indent}this._v{index} = value;" : $"{indent}this._ref = value;");
-				}
-				else if (t.FullName != VoidType)
-				{
-					if (l == OneOfLayoutKind.Composition) builder.AppendLine($"{indent}this._v{index} = value;");
-					else builder.AppendLine($"{indent}Unsafe.As<{unionName}, {t.FullName}>(ref Unsafe.AsRef(in _data)) = value;");
-				}
-			}
-
-			if (isClass)
-			{
-				sb.AppendLine("\t\t#pragma warning restore CS8618");
-			}
-			#endregion
-
-			#region Tuple Conversion 
-
-			if (!model.IsRef && model.TypeArgs.Length <= 7)
-			{
-				var tupleTypes = string.Join(", ", model.TypeArgs.Select(t => $"{t.FullName}?"));
-				var tupleFull = $"(int Kind, {tupleTypes})";
-
-				sb.AppendLine($"\t\tpublic{read} {tupleFull} AsTuple => _kind switch");
-				sb.AppendLine("\t\t{");
-				for (int i = 0; i < count; i++)
-				{
-					var values = Enumerable.Repeat("default", count).ToArray();
-					values[i] = $"{model.FieldNames[i]}Force";
-					sb.AppendLine($"\t\t\t{enumName}.{model.FieldNames[i]} => ({i + 1}, {string.Join(", ", values)}),");
-				}
-				sb.AppendLine("\t\t\t_ => (0, " + string.Join(", ", Enumerable.Repeat("default", count)) + ")");
-				sb.AppendLine("\t\t};");
-				sb.AppendLine();
-
-				sb.AppendLine($"\t\t{Inline}");
-				sb.AppendLine($"\t\tpublic static {model.FullName} FromTuple({tupleFull} tuple) => tuple.Kind switch");
-				sb.AppendLine("\t\t{");
-				for (int i = 0; i < count; i++)
-				{
-					if (sameTypes.Contains(i))
+					foreach (var group in typeGroups)
 					{
-						sb.AppendLine($"\t\t\t{i + 1} => new(({model.TypeArgs[i].FullName})tuple.Item{i + 2}!, {enumName}.{model.FieldNames[i]}),");
+						var type = group.First().type;
+						var indices = group.Select(x => x.index).ToList();
+
+						if (indices.Count == 1)
+						{
+							int i = indices[0];
+							sb.AppendLine(Inline);
+							sb.AppendLine($"public {model.Name}({type.FullName} value)");
+
+							using (sb.EnterScope())
+							{
+								GenerateAssignment(type, i, sb);
+								sb.AppendLine($"this._kind = {enumName}.{model.FieldNames[i]};");
+							}
+						}
+						else
+						{
+							var validKinds = string.Join(" || ", indices.Select(idx => $"kind == {enumName}.{model.FieldNames[idx]}"));
+
+							sb.AppendLine(Inline);
+							sb.AppendLine($"public {model.Name}({type.FullName} value, {enumName} kind)");
+							using (sb.EnterScope())
+							{
+								sb.AppendLine($"if (!({validKinds}))");
+								using (sb.EnterScope())
+								{
+									sb.AppendLine($"{ThrowHelper}.ThrowInvalid<{enumName}>(0, 0);");
+								}
+								if (type.FullName != VoidType)
+								{
+									GenerateAssignment(type, -1, sb, indices);
+								}
+								sb.AppendLine("this._kind = kind;");
+							}
+						}
 					}
-					else
+
+					if (isClass) sb.AppendLine("#pragma warning restore CS8618");
+
+					void GenerateAssignment(GenerationModel.TypeInfoModel t, int index, IndentedWriter sb, List<int>? ambiguousIndices = null)
 					{
-						sb.AppendLine($"\t\t\t{i + 1} => new(({model.TypeArgs[i].FullName})tuple.Item{i + 2}!),");
+						if (t.IsReferenceType)
+						{
+							sb.AppendLine($"if (value is null) {{ {ThrowHelper}.ThrowNull(nameof(value)); }}");
+						}
+
+						if (layout == OneOfLayoutKind.ExplicitUnion && !t.IsReferenceType)
+						{
+							sb.AppendLine("global::System.Runtime.CompilerServices.Unsafe.SkipInit(out this._data);");
+						}
+
+						if (ambiguousIndices == null)
+						{
+							sb.AppendLine($"this.{UnsafeSet(index)} = value;");
+						}
+						else
+						{
+							sb.AppendLine("switch (kind)");
+							using (sb.EnterScope())
+							{
+								foreach (var idx in ambiguousIndices)
+								{
+									sb.AppendLine($"case {enumName}.{model.FieldNames[idx]}: this.{UnsafeSet(idx)} = value; break;");
+								}
+							}
+						}
 					}
-				}
-				sb.AppendLine($"\t\t\t_ => {(model.AllowEmpty ? "Empty" : "throw new InvalidOperationException(\"Empty OneOf not allowed\")")}");
-				sb.AppendLine("\t\t};");
-				sb.AppendLine();
 
-				sb.AppendLine($"\t\t{Inline}");
-				sb.AppendLine($"\t\tpublic static implicit operator {model.FullName}({tupleFull} tuple) => FromTuple(tuple);");
-				sb.AppendLine();
-			}
+					#endregion
 
-			#endregion
-
-			if (model.AllowEmpty)
-			{
-				sb.AppendLine($"\t\tpublic static {model.FullName} Empty => new();");
-				sb.AppendLine();
-			}
-
-			#region GetForce
-
-			for (int i = 0; i < count; i++)
-			{
-				var type = model.TypeArgs[i];
-				var field = model.FieldNames[i];
-				sb.Append($"\t\tprivate{read} {type.FullName} {field}Force => {UnsafeGet(i)};");
-
-				sb.AppendLine();
-			}
-			sb.AppendLine();
-
-			#endregion
-
-			#region Get / Is
-
-			sb.AppendLine($"\t\tpublic{read} {enumName} Kind => _kind;");
-			sb.AppendLine($"\t\tpublic{read} object? BoxValue => _kind switch");
-			sb.AppendLine($"\t\t{{");
-			for (int i = 0; i < count; i++)
-			{
-				sb.AppendLine($"\t\t\t{enumName}.{model.FieldNames[i]} => (object?){model.FieldNames[i]}Force,");
-			}
-			sb.AppendLine($"\t\t\t_ => null,");
-			sb.AppendLine($"\t\t}};");
-
-			for (int i = 0; i < count; i++)
-			{
-				var type = model.TypeArgs[i];
-				var field = model.FieldNames[i];
-				sb.AppendLine($"\t\tpublic{read} {type.FullName} {field}           => _kind == {enumName}.{field} ? {UnsafeGet(i)} : ThrowIfInvalid<{type.FullName}>({enumName}.{field}, _kind);");
-				sb.AppendLine($"\t\tpublic{read} {type.FullName}? {field}OrDefault => _kind == {enumName}.{field} ? {UnsafeGet(i)}: default;");
-			}
-			sb.AppendLine($"\t\t[global::System.Diagnostics.CodeAnalysis.DoesNotReturn] [MethodImpl(MethodImplOptions.NoInlining)] private{read} TTTTTError ThrowIfInvalid<TTTTTError>({enumName} call, {enumName} real) => throw new InvalidOperationException($\"Cannot access {{call}}. Current kind is {{_kind}}\");");
-			sb.AppendLine();
-
-			if (model.AllowEmpty)
-			{
-				sb.AppendLine($"\t\tpublic{read} bool IsEmpty => _kind == {enumName}.Empty;");
-			}
-			foreach (var field in model.FieldNames)
-			{
-				sb.AppendLine($"\t\tpublic{read} bool Is{field} => _kind == {enumName}.{field};");
-			}
-			sb.AppendLine();
-
-			#endregion
-
-			#region TryGet / Is
-
-			for (int i = 0; i < count; i++)
-			{
-				var type = model.TypeArgs[i];
-				var field = model.FieldNames[i];
-				sb.AppendLine($"\t\t{Inline}");
-				sb.AppendLine($"\t\tpublic{read} bool TryGet{field}([NotNullWhen(true)] out {type.FullName}{(type.IsReferenceType ? "?" : string.Empty)} OutValue)");
-				sb.AppendLine("\t\t{");
-				sb.AppendLine($"\t\t\tif (_kind == {enumName}.{field})");
-				sb.AppendLine("\t\t\t{");
-				sb.AppendLine($"\t\t\t\tOutValue = {field}Force!;");
-				sb.AppendLine("\t\t\t\treturn true;");
-				sb.AppendLine("\t\t\t}");
-				sb.AppendLine("\t\t\tOutValue = default!;");
-				sb.AppendLine("\t\t\treturn false;");
-				sb.AppendLine("\t\t}");
-				sb.AppendLine();
-			}
-
-			sb.AppendLine($"\t\t{Inline}");
-			sb.AppendLine($"\t\tpublic{read} bool TryGet<TGet>([NotNullWhen(true)] out TGet? value)");
-			sb.AppendLine("\t\t{");
-
-			var grouped = model.TypeArgs.GroupBy(t => t.FullName);
-			foreach (var group in grouped)
-			{
-				sb.AppendLine($"\t\t\tif (typeof(TGet) == typeof({group.Key}))");
-				sb.AppendLine("\t\t\t{");
-				foreach (var t in group)
-				{
-					int index = model.TypeArgs.IndexOf(t);
-					sb.AppendLine($"\t\t\t\tif (_kind == {enumName}.{model.FieldNames[index]})");
-					sb.AppendLine("\t\t\t\t{");
-					sb.AppendLine($"\t\t\t\t\tvar temp = {model.FieldNames[index]}Force;");
-					sb.AppendLine($"\t\t\t\t\tvalue = Unsafe.As<{group.Key}, TGet>(ref temp)!;");
-					sb.AppendLine("\t\t\t\t\treturn true;");
-					sb.AppendLine("\t\t\t\t}");
-				}
-				sb.AppendLine("\t\t\t}");
-			}
-
-			sb.AppendLine("\t\t\tvalue = default;");
-			sb.AppendLine("\t\t\treturn false;");
-			sb.AppendLine("\t\t}");
-			sb.AppendLine();
-
-			#endregion
-
-			#region TryPick
-
-			for (int i = 0; i < count; i++)
-			{
-				var type = model.TypeArgs[i];
-				var field = model.FieldNames[i];
-				sb.AppendLine($"\t\t{Inline}");
-				sb.AppendLine($"\t\tpublic{read} bool TryPick{field}([NotNullWhen(true)] out {type.FullName}{(type.IsReferenceType ? "?" : string.Empty)} OutValue, [NotNullWhen(false)] out {model.FullName}{(model.TypeKind.Contains("class") ? "?" : string.Empty)} Remainder)");
-				sb.AppendLine("\t\t{");
-				sb.AppendLine($"\t\t\tif (_kind == {enumName}.{field})");
-				sb.AppendLine("\t\t\t{");
-				sb.AppendLine($"\t\t\t\tOutValue = {field}Force!;");
-				sb.AppendLine($"\t\t\t\tRemainder = default!;");
-				sb.AppendLine("\t\t\t\treturn true;");
-				sb.AppendLine("\t\t\t}");
-				sb.AppendLine("\t\t\tRemainder = this;");
-				sb.AppendLine("\t\t\tOutValue = default!;");
-				sb.AppendLine("\t\t\treturn false;");
-				sb.AppendLine("\t\t}");
-				sb.AppendLine();
-			}
-
-			#endregion
-
-			#region Switch / Match
-
-			sb.AppendLine($"\t\t{Inline}");
-			sb.Append($"\t\tpublic{read} void Switch(");
-			for (int i = 0; i < count; i++)
-			{
-				var type = model.TypeArgs[i];
-				var field = model.FieldNames[i];
-				sb.Append($"Action<{type.FullName}> On{field}");
-				if (i < count - 1)
-				{
-					sb.Append(", ");
-				}
-			}
-			if (model.AllowEmpty)
-			{
-				sb.Append(", Action OnEmpty");
-			}
-			sb.AppendLine(")");
-			sb.AppendLine("\t\t{");
-			sb.AppendLine("\t\t\tswitch(_kind)");
-			sb.AppendLine("\t\t\t{");
-			for (int i = 0; i < count; i++)
-			{
-				var field = model.FieldNames[i];
-				sb.AppendLine($"\t\t\t\tcase {enumName}.{model.FieldNames[i]}: {{ On{field}.Invoke({model.FieldNames[i]}Force); break; }}");
-			}
-			if (model.AllowEmpty)
-			{
-				sb.AppendLine("\t\t\t\tdefault: { OnEmpty.Invoke(); break; }");
-			}
-			else
-			{
-				sb.AppendLine($"\t\t\t\tdefault: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
-			}
-			sb.AppendLine("\t\t\t};");
-			sb.AppendLine("\t\t}");
-			sb.AppendLine();
-
-
-			sb.AppendLine($"\t\t{Inline}");
-			sb.Append($"\t\tpublic{read} TResult Match<TResult>(");
-			for (int i = 0; i < count; i++)
-			{
-				var type = model.TypeArgs[i];
-				var field = model.FieldNames[i];
-				sb.Append($"Func<{type.FullName}, TResult> On{field}");
-				if (i < count - 1)
-				{
-					sb.Append(", ");
-				}
-			}
-			if (model.AllowEmpty)
-			{
-				sb.Append(", Func<TResult> OnEmpty");
-			}
-			sb.AppendLine(")");
-			sb.AppendLine("\t\t{");
-			sb.AppendLine("\t\t\tswitch(_kind)");
-			sb.AppendLine("\t\t\t{");
-			for (int i = 0; i < count; i++)
-			{
-				var field = model.FieldNames[i];
-				sb.AppendLine($"\t\t\t\tcase {enumName}.{model.FieldNames[i]}: {{ return On{field}.Invoke({model.FieldNames[i]}Force); }}");
-			}
-			if (model.AllowEmpty)
-			{
-				sb.AppendLine("\t\t\t\tdefault: { return OnEmpty.Invoke(); }");
-			}
-			else
-			{
-				sb.AppendLine($"\t\t\t\tdefault: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
-			}
-			sb.AppendLine("\t\t\t};");
-			sb.AppendLine("\t\t}");
-			sb.AppendLine();
-
-			#endregion
-
-			#region Async SwitchAsync / MatchAsync
-			if (!model.IsRef)
-			{
-				sb.AppendLine($"\t\t{Inline}");
-				sb.Append($"\t\tpublic{read} async ValueTask SwitchAsync(");
-				for (int i = 0; i < count; i++)
-				{
-					var type = model.TypeArgs[i];
-					var field = model.FieldNames[i];
-					sb.Append($"Func<{type.FullName}, ValueTask> On{field}");
-					if (i < count - 1 || model.AllowEmpty)
+					if (model.AllowEmpty)
 					{
-						sb.Append(", ");
+						sb.AppendLine($"public static {model.FullName} Empty => new();");
+						sb.AppendLine();
 					}
-				}
-				if (model.AllowEmpty)
-				{
-					sb.Append("Func<ValueTask> OnEmpty");
-				}
-				sb.AppendLine(")");
-				sb.AppendLine("\t\t{");
-				sb.AppendLine("\t\t\tswitch(_kind)");
-				sb.AppendLine("\t\t\t{");
-				for (int i = 0; i < count; i++)
-				{
-					sb.AppendLine($"\t\t\t\tcase {enumName}.{model.FieldNames[i]}: {{ await On{model.FieldNames[i]}.Invoke({model.FieldNames[i]}Force); break; }}");
-				}
-				if (model.AllowEmpty)
-				{
-					sb.AppendLine("\t\t\t\tdefault: { await OnEmpty.Invoke(); break; }");
-				}
-				else
-				{
-					sb.AppendLine($"\t\t\t\tdefault: {{ throw new InvalidOperationException(\"{model.Name} is empty\"); }}");
-				}
-				sb.AppendLine("\t\t\t};");
-				sb.AppendLine("\t\t}");
-				sb.AppendLine();
 
-				sb.AppendLine($"\t\t{Inline}");
-				sb.Append($"\t\tpublic{read} async ValueTask<TResult> MatchAsync<TResult>(");
-				for (int i = 0; i < count; i++)
-				{
-					var type = model.TypeArgs[i];
-					var field = model.FieldNames[i];
-					sb.Append($"Func<{type.FullName}, ValueTask<TResult>> On{field}");
-					if (i < count - 1 || model.AllowEmpty)
-					{
-						sb.Append(", ");
-					}
-				}
-				if (model.AllowEmpty)
-				{
-					sb.Append("Func<ValueTask<TResult>> OnEmpty");
-				}
-				sb.AppendLine(")");
-				sb.AppendLine("\t\t{");
-				sb.AppendLine("\t\t\treturn _kind switch");
-				sb.AppendLine("\t\t\t{");
-				for (int i = 0; i < count; i++)
-				{
-					sb.AppendLine($"\t\t\t\t{enumName}.{model.FieldNames[i]} => await On{model.FieldNames[i]}.Invoke({model.FieldNames[i]}Force),");
-				}
-				if (model.AllowEmpty)
-				{
-					sb.AppendLine("\t\t\t\t_ => await OnEmpty.Invoke()");
-				}
-				else
-				{
-					sb.AppendLine($"\t\t\t\t_ => throw new InvalidOperationException(\"{model.Name} is empty\")");
-				}
-				sb.AppendLine("\t\t\t};");
-				sb.AppendLine("\t\t}");
-			}
-			#endregion
+					#region GetForce
 
-			#region Map
-
-			for (int i = 0; i < count; i++)
-			{
-				var type = model.TypeArgs[i];
-				var field = model.FieldNames[i];
-
-				sb.AppendLine($"\t\t{Inline}");
-				sb.AppendLine($"\t\tpublic{read} {model.FullName} Map{field}(Func<{type.FullName}, {type.FullName}> mapper)");
-				sb.AppendLine("\t\t{");
-				sb.AppendLine($"\t\t\tif (_kind == {enumName}.{field})");
-				sb.AppendLine("\t\t\t{");
-				if (sameTypes.Contains(i))
-				{
-					sb.AppendLine($"\t\t\t\treturn new {model.FullName}(mapper.Invoke({field}Force), {enumName}.{field});");
-				}
-				else
-				{
-					sb.AppendLine($"\t\t\t\treturn new {model.FullName}(mapper.Invoke({field}Force));");
-				}
-				sb.AppendLine("\t\t\t}");
-				sb.AppendLine("\t\t\treturn this;");
-				sb.AppendLine("\t\t}");
-				sb.AppendLine();
-			}
-
-			#endregion
-
-			#region Equality
-
-			if (!model.IsRef)
-			{
-				if (!model.UserFuncs.Any(f =>
-					f.Item1 == "Equals" &&
-					f.Item2.Length == 1 &&
-					f.Item2[0] == model.FullName))
-				{
-					sb.AppendLine($"\t\tpublic{read} bool Equals({model.FullName}{(isClass ? "?" : string.Empty)} other)");
-					sb.AppendLine("\t\t{");
-					if (isClass)
-					{
-						sb.AppendLine("\t\t\tif (other == null) { return false; }");
-					}
-					sb.AppendLine("\t\t\tif (_kind != other._kind) { return false; }");
-					sb.AppendLine("\t\t\treturn _kind switch");
-					sb.AppendLine("\t\t\t{");
 					for (int i = 0; i < count; i++)
 					{
-						sb.AppendLine($"\t\t\t\t{enumName}.{model.FieldNames[i]} => EqualityComparer<{model.TypeArgs[i].FullName}>.Default.Equals({model.FieldNames[i]}Force, other.{model.FieldNames[i]}Force),");
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+						sb.AppendLine($"private{read} {type.FullName} {field}Force => {UnsafeGet(i)};");
 					}
-					sb.AppendLine("\t\t\t\t_ => true");
-					sb.AppendLine("\t\t\t};");
-					sb.AppendLine("\t\t}");
 					sb.AppendLine();
-				}
 
-				if (!model.UserFuncs.Any(f =>
-					f.Item1 == "Equals" &&
-					f.Item2.Length == 1 &&
-					(f.Item2[0] == "object?" || f.Item2[0] == "object")))
-				{
-					sb.AppendLine($"\t\tpublic{read} override bool Equals(object? obj) => obj is " + model.FullName + " other && Equals(other);");
-					sb.AppendLine();
-				}
+					#endregion
 
-				if (!model.UserFuncs.Any(f =>
-					f.Item1 == "GetHashCode()" &&
-					f.Item2.Length == 0))
-				{
-					sb.AppendLine($"\t\tpublic{read} override int GetHashCode()");
-					sb.AppendLine("\t\t{");
-					sb.AppendLine("\t\t\tvar hash = new HashCode();");
-					sb.AppendLine("\t\t\thash.Add(_kind);");
-					sb.AppendLine("\t\t\tswitch(_kind)");
-					sb.AppendLine("\t\t\t{");
+					#region Get / Is
+
+					sb.AppendLine($"public{read} {enumName} Kind => _kind;");
+					sb.AppendLine($"public{read} object? BoxValue => _kind switch");
+					sb.AppendLine("{");
+					sb.Increase();
+
 					for (int i = 0; i < count; i++)
 					{
-						sb.AppendLine($"\t\t\t\tcase {enumName}.{model.FieldNames[i]}: {{ hash.Add({model.FieldNames[i]}Force); break; }}");
+						sb.AppendLine($"{enumName}.{model.FieldNames[i]} => (object?){model.FieldNames[i]}Force,");
 					}
-					sb.AppendLine("\t\t\t}");
-					sb.AppendLine("\t\t\treturn hash.ToHashCode();");
-					sb.AppendLine("\t\t}");
+					sb.AppendLine("_ => null,");
+
+					sb.Decrease();
+					sb.AppendLine("};");
 					sb.AppendLine();
+
+					for (int i = 0; i < count; i++)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+						sb.AppendLine($"public{read} {type.FullName} {field}");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine("get");
+							using (sb.EnterScope(false))
+							{
+								sb.AppendLine($"if (_kind != {enumName}.{field})");
+								using (sb.EnterScope(false))
+								{
+									sb.AppendLine($"{ThrowHelper}.ThrowInvalid<{enumName}>((int){enumName}.{field}, (int)_kind);");
+								}
+								sb.AppendLine($"return {UnsafeGet(i)};");
+							}
+						}
+
+						sb.AppendLine($"public{read} {type.FullName}? {field}OrDefault => _kind == {enumName}.{field} ? {UnsafeGet(i)}: default;");
+						sb.AppendLine();
+					}
+
+					if (model.AllowEmpty)
+					{
+						sb.AppendLine($"public{read} bool IsEmpty => _kind == {enumName}.Empty;");
+					}
+					foreach (var field in model.FieldNames)
+					{
+						sb.AppendLine($"public{read} bool Is{field} => _kind == {enumName}.{field};");
+					}
+					sb.AppendLine();
+
+					#endregion
+
+					#region TryGet / Is
+
+					for (int i = 0; i < count; i++)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public{read} bool TryGet{field}([NotNullWhen(true)] out {type.FullName}{(type.IsReferenceType ? "?" : string.Empty)} OutValue)");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine($"if (_kind == {enumName}.{field})");
+							using (sb.EnterScope())
+							{
+								sb.AppendLine($"OutValue = {UnsafeGet(i)};");
+								sb.AppendLine("return true;");
+							}
+							sb.AppendLine("OutValue = default!;");
+							sb.AppendLine("return false;");
+						}
+						sb.AppendLine();
+					}
+
+					sb.AppendLine(Inline);
+					sb.AppendLine($"public{read} bool TryGet<TGet>([NotNullWhen(true)] out TGet? value)");
+					using (sb.EnterScope())
+					{
+						var grouped = model.TypeArgs.GroupBy(t => t.FullName);
+						foreach (var group in grouped)
+						{
+							sb.AppendLine($"if (typeof(TGet) == typeof({group.Key}))");
+							using (sb.EnterScope())
+							{
+								foreach (var t in group)
+								{
+									int index = model.TypeArgs.IndexOf(t);
+									sb.AppendLine($"if (_kind == {enumName}.{model.FieldNames[index]})");
+									using (sb.EnterScope(false))
+									{
+										sb.AppendLine($"{model.TypeArgs[index].FullName} temp = {UnsafeGet(index)};");
+										sb.AppendLine($"value = Unsafe.As<{group.Key}, TGet>(ref temp)!;");
+										sb.AppendLine("return true;");
+									}
+								}
+							}
+						}
+
+						sb.AppendLine("value = default;");
+						sb.AppendLine("return false;");
+					}
+
+					#endregion
+
+					#region TryPick
+
+					for (int i = 0; i < count; i++)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public{read} bool TryPick{field}([NotNullWhen(true)] out {type.FullName}{(type.IsReferenceType ? "?" : string.Empty)} OutValue, [NotNullWhen(false)] out {model.FullName}{(model.TypeKind.Contains("class") ? "?" : string.Empty)} Remainder)");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine($"if (_kind == {enumName}.{field})");
+							using (sb.EnterScope())
+							{
+								sb.AppendLine($"OutValue = {UnsafeGet(i)};");
+								sb.AppendLine($"Remainder = default!;");
+								sb.AppendLine("return true;");
+							}
+							sb.AppendLine("Remainder = this;");
+							sb.AppendLine("OutValue = default!;");
+							sb.AppendLine("return false;");
+						}
+					}
+
+					#endregion
+
+					#region Switch / Match
+
+					sb.AppendLine(Inline);
+					sb.AppendIntend();
+					sb.Append($"public{read} void Switch(");
+					for (int i = 0; i < count; i++)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+						sb.Append($"Action<{type.FullName}> On{field}");
+						if (i < count - 1)
+						{
+							sb.Append(", ");
+						}
+					}
+					if (model.AllowEmpty)
+					{
+						sb.Append(", Action OnEmpty");
+					}
+					sb.AppendLine(")");
+					using (sb.EnterScope())
+					{
+						sb.AppendLine("switch(_kind)");
+						using (sb.EnterScope(false))
+						{
+							for (int i = 0; i < count; i++)
+							{
+								var field = model.FieldNames[i];
+								sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ On{field}.Invoke({UnsafeGet(i)}); break; }}");
+							}
+							if (model.AllowEmpty)
+							{
+								sb.AppendLine("default: { OnEmpty.Invoke(); break; }");
+							}
+							else
+							{
+								sb.AppendLine($"default: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
+							}
+						}
+					}
+
+					sb.AppendLine(Inline);
+					sb.AppendIntend();
+					sb.Append($"public{read} TResult Match<TResult>(");
+					for (int i = 0; i < count; i++)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+						sb.Append($"Func<{type.FullName}, TResult> On{field}");
+						if (i < count - 1)
+						{
+							sb.Append(", ");
+						}
+					}
+					if (model.AllowEmpty)
+					{
+						sb.Append(", Func<TResult> OnEmpty");
+					}
+					sb.AppendLine(")");
+					using (sb.EnterScope())
+					{
+						sb.AppendLine("switch(_kind)");
+						using (sb.EnterScope(false))
+						{
+							for (int i = 0; i < count; i++)
+							{
+								var field = model.FieldNames[i];
+								sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ return On{field}.Invoke({UnsafeGet(i)}); }}");
+							}
+							if (model.AllowEmpty)
+							{
+								sb.AppendLine("default: { return OnEmpty.Invoke(); }");
+							}
+							else
+							{
+								sb.AppendLine($"default: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
+							}
+						}
+					}
+
+					#endregion
+
+					#region Async SwitchAsync / MatchAsync
+
+					if (!model.IsRef)
+					{
+						sb.AppendLine(Inline);
+						sb.AppendIntend();
+						sb.Append($"public{read} async ValueTask SwitchAsync(");
+						for (int i = 0; i < count; i++)
+						{
+							var type = model.TypeArgs[i];
+							var field = model.FieldNames[i];
+							sb.Append($"Func<{type.FullName}, ValueTask> On{field}");
+							if (i < count - 1 || model.AllowEmpty)
+							{
+								sb.Append(", ");
+							}
+						}
+						if (model.AllowEmpty)
+						{
+							sb.Append("Func<ValueTask> OnEmpty");
+						}
+						sb.AppendLine(")");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine("switch(_kind)");
+							sb.AppendLine("{");
+							sb.Increase();
+							for (int i = 0; i < count; i++)
+							{
+								sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ await On{model.FieldNames[i]}.Invoke({UnsafeGet(i)}); break; }}");
+							}
+							if (model.AllowEmpty)
+							{
+								sb.AppendLine("default: { await OnEmpty.Invoke(); break; }");
+							}
+							else
+							{
+								sb.AppendLine($"default: {{ throw new InvalidOperationException(\"{model.Name} is empty\"); }}");
+							}
+							sb.Decrease();
+							sb.AppendLine("};");
+						}
+
+						sb.AppendLine(Inline);
+						sb.AppendIntend();
+						sb.Append($"public{read} async ValueTask<TResult> MatchAsync<TResult>(");
+						for (int i = 0; i < count; i++)
+						{
+							var type = model.TypeArgs[i];
+							var field = model.FieldNames[i];
+							sb.Append($"Func<{type.FullName}, ValueTask<TResult>> On{field}");
+							if (i < count - 1 || model.AllowEmpty)
+							{
+								sb.Append(", ");
+							}
+						}
+						if (model.AllowEmpty)
+						{
+							sb.Append("Func<ValueTask<TResult>> OnEmpty");
+						}
+						sb.AppendLine(")");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine("return _kind switch");
+							sb.AppendLine("{");
+							sb.Increase();
+							for (int i = 0; i < count; i++)
+							{
+								sb.AppendLine($"{enumName}.{model.FieldNames[i]} => await On{model.FieldNames[i]}.Invoke({UnsafeGet(i)}),");
+							}
+							if (model.AllowEmpty)
+							{
+								sb.AppendLine("_ => await OnEmpty.Invoke()");
+							}
+							else
+							{
+								sb.AppendLine($"_ => throw new InvalidOperationException(\"{model.Name} is empty\")");
+							}
+							sb.Decrease();
+							sb.AppendLine("};");
+						}
+					}
+					#endregion
+
+					#region Map
+
+					for (int i = 0; i < count; i++)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public{read} {model.FullName} Map{field}(Func<{type.FullName}, {type.FullName}> mapper)");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine($"if (_kind == {enumName}.{field})");
+							using (sb.EnterScope())
+							{
+								if (sameTypes.Contains(i))
+								{
+									sb.AppendLine($"return new {model.FullName}(mapper.Invoke({UnsafeGet(i)}), {enumName}.{field});");
+								}
+								else
+								{
+									sb.AppendLine($"return new {model.FullName}(mapper.Invoke({UnsafeGet(i)}));");
+								}
+							}
+							sb.AppendLine("return this;");
+						}
+					}
+
+					#endregion
+
+					#region Equality
+
+					if (!model.IsRef)
+					{
+						if (!model.UserFuncs.Any(f =>
+							f.Item1 == "Equals" &&
+							f.Item2.Length == 1 &&
+							f.Item2[0] == model.FullName))
+						{
+							sb.AppendLine($"public{read} bool Equals({model.FullName}{(isClass ? "?" : string.Empty)} other)");
+							using (sb.EnterScope())
+							{
+								if (isClass)
+								{
+									sb.AppendLine("if (other == null) { return false; }");
+								}
+								sb.AppendLine("if (_kind != other._kind) { return false; }");
+								sb.AppendLine("return _kind switch");
+								sb.AppendLine("{");
+								sb.Increase();
+								for (int i = 0; i < count; i++)
+								{
+									sb.AppendLine($"{enumName}.{model.FieldNames[i]} => EqualityComparer<{model.TypeArgs[i].FullName}>.Default.Equals({UnsafeGet(i)}, other.{model.FieldNames[i]}Force),");
+								}
+								sb.AppendLine("_ => true");
+								sb.Decrease();
+								sb.AppendLine("};");
+							}
+						}
+
+						if (!model.UserFuncs.Any(f =>
+							f.Item1 == "Equals" &&
+							f.Item2.Length == 1 &&
+							(f.Item2[0] == "object?" || f.Item2[0] == "object")))
+						{
+							sb.AppendLine($"public{read} override bool Equals(object? obj) => obj is " + model.FullName + " other && Equals(other);");
+							sb.AppendLine();
+						}
+
+						if (!model.UserFuncs.Any(f =>
+							f.Item1 == "GetHashCode()" &&
+							f.Item2.Length == 0))
+						{
+							sb.AppendLine($"public{read} override int GetHashCode()");
+							using (sb.EnterScope())
+							{
+								sb.AppendLine("var hash = new HashCode();");
+								sb.AppendLine("hash.Add(_kind);");
+								sb.AppendLine("switch(_kind)");
+								using (sb.EnterScope())
+								{
+									for (int i = 0; i < count; i++)
+									{
+										sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ hash.Add({UnsafeGet(i)}); break; }}");
+									}
+								}
+								sb.AppendLine("return hash.ToHashCode();");
+							}
+						}
+
+						if (!isClass)
+						{
+							sb.AppendLine($"public static bool operator ==({model.FullName} left, {model.FullName} right) => left.Equals(right);");
+							sb.AppendLine($"public static bool operator !=({model.FullName} left, {model.FullName} right) => !left.Equals(right);");
+						}
+						else
+						{
+							sb.AppendLine($"public static bool operator ==({model.FullName}? left, {model.FullName}? right) => ReferenceEquals(left, right) ? true : (((object?)left) == null ? false : left.Equals(right));");
+							sb.AppendLine($"public static bool operator !=({model.FullName}? left, {model.FullName}? right) => ReferenceEquals(left, right) ? false :(((object?)left) == null ? true : !left.Equals(right));");
+						}
+						sb.AppendLine();
+					}
+
+					#endregion
+
+					#region Deconstruct
+
+					sb.Append($"\t\tpublic{read} void Deconstruct(out {enumName} kind");
+					for (int i = 0; i < count; i++)
+					{
+						sb.Append($", out {model.TypeArgs[i].FullName}? {model.FieldNames[i].ToLower()}");
+					}
+					sb.AppendLine(")");
+					using (sb.EnterScope())
+					{
+						sb.AppendLine("kind = _kind;");
+						for (int i = 0; i < count; i++)
+						{
+							sb.AppendLine($"{model.FieldNames[i].ToLower()} = Is{model.FieldNames[i]} ? {UnsafeGet(i)} : default;");
+						}
+					}
+
+					#endregion
+
+					#region Operators
+
+					foreach (int i in uniqTypes)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+						if (model.TypeArgs.Count(x => x.FullName == type.FullName) >= 2) { continue; }
+						sb.AppendLine(Inline);
+						sb.AppendIntend();
+						sb.Append($"public static implicit operator {model.FullName}({type.FullName} value) => ");
+						if (type.IsReferenceType)
+						{
+							sb.Append("(value == null) ? throw new ArgumentNullException(nameof(value)) : new(value);");
+							sb.AppendLine();
+						}
+						else
+						{
+							sb.Append("new(value);");
+							sb.AppendLine();
+						}
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public static explicit operator {type.FullName}({model.FullName} source) => source.{field};");
+						sb.AppendLine();
+					}
+
+					#endregion
+
+					#region IEnumerable
+
+					if (!model.IsRef)
+					{
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public{read} IEnumerable<{model.FullName}> AsEnumerable()");
+						using (sb.EnterScope())
+						{
+							if (model.AllowEmpty)
+							{
+								sb.AppendLine("if (IsEmpty) { yield break; }");
+							}
+							sb.AppendLine("yield return this;");
+						}
+					}
+
+					#endregion
+
+					#region Tuple Conversion 
+
+					if (!model.IsRef && model.TypeArgs.Length <= 7)
+					{
+						var tupleTypes = string.Join(", ", model.TypeArgs.Select(t => $"{t.FullName}?"));
+						var tupleFull = $"(int Kind, {tupleTypes})";
+
+						sb.AppendLine($"public{read} {tupleFull} AsTuple => _kind switch");
+						sb.AppendLine("{");
+						sb.Increase();
+
+						for (int i = 0; i < count; i++)
+						{
+							var values = Enumerable.Repeat("default", count).ToArray();
+							values[i] = UnsafeGet(i);
+							sb.AppendLine($"{enumName}.{model.FieldNames[i]} => ({i + 1}, {string.Join(", ", values)}),");
+						}
+						sb.AppendLine("_ => (0, " + string.Join(", ", Enumerable.Repeat("default", count)) + ")");
+
+						sb.Decrease();
+						sb.AppendLine("};");
+						sb.AppendLine();
+
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public static {model.FullName} FromTuple({tupleFull} tuple) => tuple.Kind switch");
+						sb.AppendLine("{");
+						sb.Increase();
+						for (int i = 0; i < count; i++)
+						{
+							if (sameTypes.Contains(i))
+							{
+								sb.AppendLine($"{i + 1} => new(({model.TypeArgs[i].FullName})tuple.Item{i + 2}!, {enumName}.{model.FieldNames[i]}),");
+							}
+							else
+							{
+								sb.AppendLine($"{i + 1} => new(({model.TypeArgs[i].FullName})tuple.Item{i + 2}!),");
+							}
+						}
+						sb.AppendLine($"_ => {(model.AllowEmpty ? "Empty" : $"{ThrowHelper}.ThrowEmpty<{model.FullName}>()")}");
+						sb.Decrease();
+						sb.AppendLine("};");
+						sb.AppendLine();
+
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public static implicit operator {model.FullName}({tupleFull} tuple) => FromTuple(tuple);");
+						sb.AppendLine();
+					}
+
+					#endregion
+
+					#region ToString / DebuggerDisplay
+
+					if (!model.UserFuncs.Any(f =>
+							f.Item1 == "ToString" &&
+							f.Item2.Length == 0))
+					{
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public{read} override string? ToString() => _kind switch");
+						sb.AppendLine("{");
+						sb.Increase();
+						for (int i = 0; i < count; i++)
+						{
+							sb.AppendLine($"{enumName}.{model.FieldNames[i]} => ({UnsafeGet(i)}).ToString(),");
+						}
+						sb.AppendLine("_ => \"Empty\"");
+						sb.Decrease();
+						sb.AppendLine("};");
+						sb.AppendLine();
+					}
+
+					sb.AppendLine("#if DEBUG");
+					sb.AppendLine($"private{read} string DebuggerDisplay => _kind switch");
+					sb.AppendLine("{");
+					sb.Increase();
+					for (int i = 0; i < count; i++)
+					{
+						sb.AppendLine($"{enumName}.{model.FieldNames[i]} => $\"{model.TypeArgs[i].ShortName}({{{model.FieldNames[i]}}})\",");
+					}
+					sb.AppendLine("_ => \"Empty\"");
+					sb.Decrease();
+					sb.AppendLine("};");
+					sb.AppendLine("#endif");
+
+					#endregion
+
+					sb.AppendLine($"public enum {enumName} : int");
+					using (sb.EnterScope(false))
+					{
+						sb.AppendLine("Empty = 0,");
+						for (int i = 0; i < count; i++)
+						{
+							sb.AppendLine($"{model.FieldNames[i]} = {i + 1},");
+						}
+					}
 				}
-
-				if (!isClass)
-				{
-					sb.AppendLine($"\t\tpublic static bool operator ==({model.FullName} left, {model.FullName} right) => left.Equals(right);");
-					sb.AppendLine($"\t\tpublic static bool operator !=({model.FullName} left, {model.FullName} right) => !left.Equals(right);");
-				}
-				else
-				{
-					sb.AppendLine($"\t\tpublic static bool operator ==({model.FullName}? left, {model.FullName}? right) => ReferenceEquals(left, right) ? true : (((object?)left) == null ? false : left.Equals(right));");
-					sb.AppendLine($"\t\tpublic static bool operator !=({model.FullName}? left, {model.FullName}? right) => ReferenceEquals(left, right) ? false :(((object?)left) == null ? true : !left.Equals(right));");
-				}
-				sb.AppendLine();
 			}
-
-			#endregion
-
-			#region Deconstruct
-
-			sb.Append($"\t\tpublic{read} void Deconstruct(out {enumName} kind");
-			for (int i = 0; i < count; i++)
-			{
-				sb.Append($", out {model.TypeArgs[i].FullName}? {model.FieldNames[i].ToLower()}");
-			}
-			sb.AppendLine(")");
-			sb.AppendLine("\t\t{");
-			sb.AppendLine("\t\t\tkind = _kind;");
-			for (int i = 0; i < count; i++)
-			{
-				sb.AppendLine($"\t\t\t{model.FieldNames[i].ToLower()} = Is{model.FieldNames[i]} ? {model.FieldNames[i]}Force : default;");
-			}
-			sb.AppendLine("\t\t}");
-			sb.AppendLine();
-
-			#endregion
-
-			#region Operators
-
-			foreach (int i in uniqTypes)
-			{
-				var type = model.TypeArgs[i];
-				var field = model.FieldNames[i];
-				if (model.TypeArgs.Count(x => x.FullName == type.FullName) >= 2) { continue; }
-				sb.AppendLine($"\t\t{Inline}");
-				sb.Append($"\t\tpublic static implicit operator {model.FullName}({type.FullName} value) => ");
-				if (type.IsReferenceType)
-				{
-					sb.AppendLine("(value == null) ? throw new ArgumentNullException(nameof(value)) : new(value);");
-				}
-				else
-				{
-					sb.AppendLine("new(value);");
-				}
-				sb.AppendLine($"\t\t{Inline}");
-				sb.AppendLine($"\t\tpublic static explicit operator {type.FullName}({model.FullName} source) => source.{field};");
-				sb.AppendLine();
-			}
-
-			#endregion
-
-			#region IEnumerable
-
-			if (!model.IsRef)
-			{
-				sb.AppendLine($"\t\t{Inline}");
-				sb.AppendLine($"\t\tpublic{read} IEnumerable<{model.FullName}> AsEnumerable()");
-				sb.AppendLine("\t\t{");
-				if (model.AllowEmpty)
-				{
-					sb.AppendLine("\t\t\tif (IsEmpty) { yield break; }");
-				}
-				sb.AppendLine("\t\t\tyield return this;");
-				sb.AppendLine("\t\t}");
-				sb.AppendLine();
-			}
-
-			#endregion
-
-			#region ToString / DebuggerDisplay
-
-			if (!model.UserFuncs.Any(f =>
-					f.Item1 == "ToString" &&
-					f.Item2.Length == 0 ))
-			{
-				sb.AppendLine($"\t\t{Inline}");
-				sb.AppendLine($"\t\tpublic{read} override string? ToString() => _kind switch");
-				sb.AppendLine("\t\t{");
-				for (int i = 0; i < count; i++)
-				{
-					sb.AppendLine($"\t\t\t{enumName}.{model.FieldNames[i]} => {model.FieldNames[i]}Force!.ToString(),");
-				}
-				sb.AppendLine("\t\t\t_ => \"Empty\"");
-				sb.AppendLine("\t\t};");
-				sb.AppendLine();
-			}
-
-			sb.AppendLine("\t\t#if DEBUG");
-			sb.AppendLine($"\t\tprivate{read} string DebuggerDisplay => _kind switch");
-			sb.AppendLine("\t\t{");
-			for (int i = 0; i < count; i++)
-			{
-				sb.AppendLine($"\t\t\t{enumName}.{model.FieldNames[i]} => $\"{model.TypeArgs[i].ShortName}({{{model.FieldNames[i]}}})\",");
-			}
-			sb.AppendLine("\t\t\t_ => \"Empty\"");
-			sb.AppendLine("\t\t};");
-			sb.AppendLine("\t\t#endif");
-
-			#endregion
-
-			sb.AppendLine($"\t\tpublic enum {enumName} : int");
-			sb.AppendLine("\t\t{");
-			sb.AppendLine("\t\t\tEmpty = 0,");
-			for (int i = 0; i < count; i++)
-			{
-				sb.AppendLine($"\t\t\t{model.FieldNames[i]} = {i + 1},");
-			}
-			sb.AppendLine("\t\t}");
-			sb.AppendLine("\t}");
-
-			sb.Append("}");
 			return sb.ToString();
 
 			string UnsafeGet(int i)
 			{
 				var type = model.TypeArgs[i];
 
-				if (model.TypeArgs[i].FullName == VoidType) { return "default"; }
+				if (model.TypeArgs[i].FullName == VoidType) { return $"default({VoidType})"; }
 
 				if (layout == OneOfLayoutKind.Boxing)
 				{
@@ -820,6 +843,30 @@ namespace DotPointers.OneOf.Generator
 				else if (type.IsReferenceType)
 				{
 					return $"({type.FullName})_ref!";
+				}
+				else
+				{
+					return $"_data._v{i}";
+				}
+			}
+
+			string UnsafeSet(int i)
+			{
+				var type = model.TypeArgs[i];
+
+				if (model.TypeArgs[i].FullName == VoidType) { return $""; }
+
+				if (layout == OneOfLayoutKind.Boxing)
+				{
+					return "_value";
+				}
+				else if (layout == OneOfLayoutKind.Composition)
+				{
+					return $"_v{i}";
+				}
+				else if (type.IsReferenceType)
+				{
+					return "_ref";
 				}
 				else
 				{
@@ -1174,6 +1221,75 @@ namespace DotPointers.OneOf.Generator
 			sb.AppendLine("\t\t}");
 			sb.AppendLine("\t}");
 			sb.Append("}");
+
+			return sb.ToString();
+		}
+
+		public static string GenerateThrowHelper(string? nameSpace)
+		{
+			bool hasNamespace = !string.IsNullOrWhiteSpace(nameSpace);
+
+			string indent = hasNamespace ? "\t" : "";
+
+			StringBuilder sb = new(1024);
+			sb.AppendLine($"// <auto-generated by {nameof(OneOfGenerator)} for Throw />");
+			sb.AppendLine("using System;");
+			sb.AppendLine("using System.Runtime.CompilerServices;");
+			sb.AppendLine();
+
+			if (hasNamespace)
+			{
+				sb.AppendLine($"namespace {nameSpace}");
+				sb.AppendLine("{");
+			}
+
+			sb.Append(
+				$$"""
+				{{indent}}internal static class OneOfThrowHelper
+				{{indent}}{
+				{{indent}}	[global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
+				{{indent}}	[MethodImpl(MethodImplOptions.NoInlining)]
+				{{indent}}	internal static void ThrowInvalid<T>(int expected, int current) where T : struct, Enum
+				{{indent}}	{
+				{{indent}}		throw new InvalidOperationException($"Cannot access {(T)(object)expected}. Current kind is {(T)(object)current}");
+				{{indent}}	}
+
+				{{indent}}	[global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
+				{{indent}}	[MethodImpl(MethodImplOptions.NoInlining)]
+				{{indent}}	internal static void ThrowEmpty(string typeName)
+				{{indent}}	{
+				{{indent}}		throw new InvalidOperationException($"{typeName} is empty or not initialized");
+				{{indent}}	}
+
+				{{indent}}	[global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
+				{{indent}}	[MethodImpl(MethodImplOptions.NoInlining)]
+				{{indent}}	internal static T ThrowEmpty<T>()
+				{{indent}}	{
+				{{indent}}		throw new InvalidOperationException($"{nameof(T)} is empty or not initialized");
+				{{indent}}	}
+
+				{{indent}}	[global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
+				{{indent}}	[MethodImpl(MethodImplOptions.NoInlining)]
+				{{indent}}	internal static void ThrowNull(string typeName)
+				{{indent}}	{
+				{{indent}}		throw new NullReferenceException($"{typeName} cannot be initialized with null");
+				{{indent}}	}
+
+				{{indent}}	[global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
+				{{indent}}	[MethodImpl(MethodImplOptions.NoInlining)]
+				{{indent}}	internal static void ThrowInvalidType(string typeName)
+				{{indent}}	{
+				{{indent}}		throw new NullReferenceException($"{typeName} cannot be initialized with null");
+				{{indent}}	}
+				{{indent}}}
+				"""
+			);
+
+			if (hasNamespace)
+			{
+				sb.AppendLine();
+				sb.Append("}");
+			}
 
 			return sb.ToString();
 		}

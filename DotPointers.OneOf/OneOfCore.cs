@@ -37,14 +37,19 @@ namespace DotPointers.OneOf
 		public GenerateMemoryPackSupportAttribute() { }
 	}
 
-	public interface IOneOf<T0> { }
-	public interface IOneOf<T0, T1> { }
-	public interface IOneOf<T0, T1, T2> { }
-	public interface IOneOf<T0, T1, T2, T3> { }
-	public interface IOneOf<T0, T1, T2, T3, T4> { }
-	public interface IOneOf<T0, T1, T2, T3, T4, T5> { }
-	public interface IOneOf<T0, T1, T2, T3, T4, T5, T6> { }
-	public interface IOneOf<T0, T1, T2, T3, T4, T5, T6, T7> { }
+	public interface IOneOf
+	{
+		public object? BoxValue { get; }
+	}
+
+	public interface IOneOf<T0> : IOneOf { }
+	public interface IOneOf<T0, T1> : IOneOf { }
+	public interface IOneOf<T0, T1, T2> : IOneOf { }
+	public interface IOneOf<T0, T1, T2, T3> : IOneOf { }
+	public interface IOneOf<T0, T1, T2, T3, T4> : IOneOf { }
+	public interface IOneOf<T0, T1, T2, T3, T4, T5> : IOneOf { }
+	public interface IOneOf<T0, T1, T2, T3, T4, T5, T6> : IOneOf { }
+	public interface IOneOf<T0, T1, T2, T3, T4, T5, T6, T7> : IOneOf { }
 
 	public enum OneOfLayoutKind : int
 	{

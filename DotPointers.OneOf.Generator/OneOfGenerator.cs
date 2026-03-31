@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using static DotPointers.OneOf.Generator.GenerationModel;
 
@@ -22,39 +23,53 @@ namespace DotPointers.OneOf.Generator
 
 		public void Initialize(IncrementalGeneratorInitializationContext context)
 		{
-//#if DEBUG
-//			if (!System.Diagnostics.Debugger.IsAttached)
-//			{
-//				System.Diagnostics.Debugger.Launch();
-//			}
-//#endif
+			//#if DEBUG
+			//if (!System.Diagnostics.Debugger.IsAttached)
+			//{ 
+			//		System.Diagnostics.Debugger.Launch();
+			//}
+			//#endif
+
 			var targets = context.SyntaxProvider.ForAttributeWithMetadataName(
 				fullyQualifiedMetadataName: AttrName,
 				predicate: static (node, _) => node is TypeDeclarationSyntax,
 				transform: static (ctx, _) => GetModel(ctx))
 				.Where(static x => x != null)
-				.WithComparer(GenerationModelComparer.Instance);
+				.WithComparer(GenerationModelComparer.Instance)!;
 
 			context.RegisterSourceOutput(targets, static (spc, model) =>
 			{
-				var source = OneOfSourceGenerator.GenerateSource(model!);
-				var path = $"{model!.Namespace}.{model.FullName.Replace('<', '(').Replace('>', ')')}";
+				if (model == null) { return; }
+				var source = OneOfSourceGenerator.GenerateSource(model);
+				var path = $"{model.Namespace}.{model.FullName.Replace('<', '(').Replace('>', ')')}";
+
 				spc.AddSource($"{path}.g.cs", SourceText.From(source, Encoding.UTF8));
+
 				if (model.SerializeOption.HasFlag(Serialization.SystemJson))
 				{
-					var jsonSource = OneOfSourceGenerator.GenerateSystemJsonSource(model);
-					spc.AddSource($"{path}.SystemJson.g.cs", SourceText.From(jsonSource, Encoding.UTF8));
+					spc.AddSource($"{path}.SystemJson.g.cs", SourceText.From(OneOfSourceGenerator.GenerateSystemJsonSource(model), Encoding.UTF8));
 				}
+
 				if (model.SerializeOption.HasFlag(Serialization.NewtonsoftJson))
 				{
-					var jsonSource = OneOfSourceGenerator.GenerateNewtonsoftJsonSource(model);
-					spc.AddSource($"{path}.NewtonsoftJson.g.cs", SourceText.From(jsonSource, Encoding.UTF8));
+					spc.AddSource($"{path}.NewtonsoftJson.g.cs", SourceText.From(OneOfSourceGenerator.GenerateNewtonsoftJsonSource(model), Encoding.UTF8));
 				}
+
 				if (model.SerializeOption.HasFlag(Serialization.MemoryPack))
 				{
-					var jsonSource = OneOfSourceGenerator.GenerateMemoryPackSource(model);
-					spc.AddSource($"{path}.MemoryPack.g.cs", SourceText.From(jsonSource, Encoding.UTF8));
+					spc.AddSource($"{path}.MemoryPack.g.cs", SourceText.From(OneOfSourceGenerator.GenerateMemoryPackSource(model), Encoding.UTF8));
 				}
+			});
+
+			var uniqueNamespaces = targets
+				.Select(static (m, _) => m?.Namespace)
+				.Collect()
+				.SelectMany(static (namespaces, _) => namespaces.Distinct());
+
+			context.RegisterSourceOutput(uniqueNamespaces, static (spc, ns) =>
+			{
+				var fileName = string.IsNullOrEmpty(ns) ? "Global" : ns;
+				spc.AddSource($"{fileName}.OneOfThrowHelper.g.cs", SourceText.From(OneOfSourceGenerator.GenerateThrowHelper(ns), Encoding.UTF8));
 			});
 		}
 
