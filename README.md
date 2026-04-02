@@ -12,7 +12,7 @@ By leveraging modern C# features and low-level memory management, it provides a 
 5. [Benchmark](#-benchmark)
 6. [Installation](#-installation)
 
-💎 Key Features
+### 💎 Key Features
 
 - **Memory-Efficient Layouts:** Gain full control over data representation. Use Explicit layout to overlay fields and minimize struct size, or Composition for maximum compatibility.
 
@@ -20,7 +20,7 @@ By leveraging modern C# features and low-level memory management, it provides a 
 
 - **Direct Access & Switching:** The fastest way to handle Unions in .NET. Work directly with the Kind discriminator to bypass delegate overhead and achieve superior performance.
 
-- **Compile-Time Safety:* No runtime magic. All methods (Match, Switch, TryPick) are generated during the build, providing instant feedback and full IDE support.
+- **Compile-Time Safety:** No runtime magic. All methods (Match, Switch, TryPick) are generated during the build, providing instant feedback and full IDE support.
 
 - **Zero GC Pressure:** Operates exclusively on the stack with value types. Avoids boxing in hot paths and eliminates Garbage Collector overhead.
 
