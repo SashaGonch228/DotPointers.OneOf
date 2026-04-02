@@ -10,8 +10,23 @@
 		<PackageTags>csharp;source-generator;discriminated-unions;high-performance</PackageTags>
 		<RepositoryUrl>https://github.com/SashaGonch228/DotPointers.OneOf</RepositoryUrl>
 		<IsPackable>true</IsPackable>
-		<IncludeSymbols>false</IncludeSymbols>
+		<IncludeSymbols>true</IncludeSymbols>
+		<PackageProjectUrl>https://github.com/SashaGonch228/DotPointers.OneOf</PackageProjectUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageIcon>logo.png</PackageIcon>
+		<Description>High-performance, memory-efficient Source Generator for Discriminated Unions with Explicit, Composition, and Boxing layout support.</Description>
 	</PropertyGroup>
+	
+	<PropertyGroup>
+		<ContinuousIntegrationBuild Condition="'$(Configuration)' == 'Release'">true</ContinuousIntegrationBuild>
+	</PropertyGroup>
+	
+	<ItemGroup>
+		<None Include="..\logo.png" Pack="true" PackagePath="\" />
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\DotPointers.OneOf.Generator\DotPointers.OneOf.Generator.csproj"

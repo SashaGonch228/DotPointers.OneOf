@@ -115,10 +115,11 @@ namespace DotPointers.OneOf.Generator
 					}
 					sb.AppendLine();
 
-				#endregion
+#endregion
 
 					#region Constructors
 
+					sb.AppendLine("#pragma warning disable CS8618");
 					if (isClass) { sb.AppendLine("#pragma warning disable CS8618"); }
 
 					string masterParams = layout switch
@@ -215,6 +216,7 @@ namespace DotPointers.OneOf.Generator
 					}
 
 					if (isClass) sb.AppendLine("#pragma warning restore CS8618");
+					sb.AppendLine("#pragma warning restore CS8618");
 
 					void GenerateAssignment(GenerationModel.TypeInfoModel t, int index, IndentedWriter sb, List<int>? ambiguousIndices = null)
 					{
@@ -840,16 +842,20 @@ namespace DotPointers.OneOf.Generator
 				}
 				else if (layout == OneOfLayoutKind.Composition)
 				{
-					return $"_v{i}";
+					return $"_v{i}!";
 				}
-				else if (type.IsReferenceType)
+				else if (layout == OneOfLayoutKind.ExplicitUnion)
 				{
-					return $"({type.FullName})_ref!";
+					if (type.IsReferenceType)
+					{
+						return $"({type.FullName})_ref!";
+					}
+					else
+					{
+						return $"_data._v{i}";
+					}
 				}
-				else
-				{
-					return $"_data._v{i}";
-				}
+				return string.Empty;
 			}
 
 			string UnsafeSet(int i)

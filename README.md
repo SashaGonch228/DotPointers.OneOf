@@ -1,5 +1,7 @@
 # DotPointers.OneOf
 
+<img src="logo.png" align="right" width="160px" />
+
 DotPointers.OneOf is a **high-performance** Source Generator for C# designed to create **memory-efficient** Discriminated Unions.
 
 By leveraging modern C# features and low-level memory management, it provides a powerful alternative to traditional polymorphism and manual type checking, ensuring maximum performance with zero runtime overhead.
