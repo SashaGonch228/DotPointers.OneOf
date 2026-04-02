@@ -4,17 +4,27 @@ DotPointers.OneOf is a **high-performance** Source Generator for C# designed to 
 
 By leveraging modern C# features and low-level memory management, it provides a powerful alternative to traditional polymorphism and manual type checking, ensuring maximum performance with zero runtime overhead.
 
-### 💎 Key Features
+## 📑 Table of Contents
+1. [Key Features](#-key-features)
+2. [Quick Start](#-quick-start)
+3. [Serialization](#-serialization-zero-boilerplate)
+4. [Layout Strategies](#-layout-strategies)
+5. [Benchmark](#-benchmark)
+6. [Installation](#-installation)
 
-- Zero-Allocation: Utilizes LayoutKind.Explicit to minimize memory footprint by overlaying fields in memory.
+💎 Key Features
 
-- Compile-Time Safety: Generates all boilerplate code during compilation, providing instant feedback in your IDE.
+- **Memory-Efficient Layouts:** Gain full control over data representation. Use Explicit layout to overlay fields and minimize struct size, or Composition for maximum compatibility.
 
-- Performance-First: Uses Unsafe and MethodImplOptions.AggressiveInlining to ensure the generated code is as fast as hand-written logic.
+- **High-Performance CodeGen:** Generates highly inlinable code using Unsafe and AggressiveInlining. Achieve the speed of hand-optimized logic while maintaining a clean, high-level API.
 
-- Comprehensive API: Automatically generates Match, Switch, TryPick, Map, and Async methods (ValueTask support).
+- **Direct Access & Switching:** The fastest way to handle Unions in .NET. Work directly with the Kind discriminator to bypass delegate overhead and achieve superior performance.
 
-- Serialization API: You can genetate System.Text.Json, Newtonsoft.Json and MemoryPack serializators via just add attributes 
+- **Compile-Time Safety:* No runtime magic. All methods (Match, Switch, TryPick) are generated during the build, providing instant feedback and full IDE support.
+
+- **Zero GC Pressure:** Operates exclusively on the stack with value types. Avoids boxing in hot paths and eliminates Garbage Collector overhead.
+
+- **Native Serialization:** Out-of-the-box support for MemoryPack, System.Text.Json, and Newtonsoft.Json via simple attributes—no custom converters required.
 
 ### 🚀 Quick Start
 
@@ -51,7 +61,18 @@ range.Switch(
 );
 ```
 
+Note on Void: Since the generator uses a fixed-arity interface, use the Void type as a placeholder for unused type slots. These slots will be ignored by the generator and won't affect the memory layout.
+
 *More samples in DotPointers.OneOf.Samples*
+
+### 🔌 Serialization (Zero-Boilerplate)
+DotPointers.OneOf supports the most popular serializers out of the box. No custom converters needed.
+
+| Serializer | Attribute | Description |
+| :--- | :--- | :--- |
+| **MemoryPack** | `[GenerateMemoryPack]` | Ultra-fast binary serialization (1-byte Kind tag + sizeof(current)). |
+| **System.Text.Json** | `[GenerateSystemTextJson]` | Native .NET JSON support. |
+| **Newtonsoft.Json** | `[GenerateNewtonsoftJson]` | Legacy/Advanced JSON support. |
 
 
 ### 🛠 Layout Strategies
@@ -62,7 +83,7 @@ You can control how the data is stored in memory via OneOfLayoutKind. Choosing t
 
 The most efficient way for value types. All value types are overlaid in a single Explicit struct (sharing the same memory space), while reference types are stored in a separate field.
 
-**Pros:** Minimum memory footprint, alloc free.
+**Pros:** Minimum memory footprint, allocation-free.
 
 **Cons:** Does not work with Generics (due to CLR limitations with FieldOffset).
 
@@ -82,8 +103,6 @@ partial struct MyUnion
 }
 
 ```
-
-
 
 #### 2. Composition *(sum(sizeof(T)) + 4)*
 
@@ -112,10 +131,22 @@ Stores everything as a single object field.
 
 **Cons:** Causes Boxing for value types, which is bad for high-performance scenarios. Use this primarily for classes or when memory size is more critical than GC pressure.
 
+```csharp
 partial struct MyUnion {
     private readonly object? _value;
 }
+```
 
+### 💥 Benchmark
+
+| Method                        | Mean         | Ratio | Code Size | Allocated | Object size |
+|------------------------------ |-------------:|------:|----------:|----------:|------------:|
+| Match_OneOf_Massive           | 1.371 ms     |  1.00 |     758 B |         - |        32 B |
+| Match_Explicit_Massive        | **1.302 ms** |  0.95 |     788 B |         - |    **20 B** |
+| Match_Composition_Massive     | 1.442 ms     |  1.05 |     791 B |         - |        32 B |
+| DirectSwitch_Explicit_Massive | **1.148 ms** |  0.84 | **237 B** |         - |    **20 B** |
+
+*Object size measured for a Union of 3 value types (GUID, long, int).*
 
 ### 📦 Installation
 

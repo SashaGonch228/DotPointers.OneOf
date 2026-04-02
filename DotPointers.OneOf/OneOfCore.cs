@@ -40,6 +40,7 @@ namespace DotPointers.OneOf
 	public interface IOneOf
 	{
 		public object? BoxValue { get; }
+		public int Index { get; }
 	}
 
 	public interface IOneOf<T0> : IOneOf { }
