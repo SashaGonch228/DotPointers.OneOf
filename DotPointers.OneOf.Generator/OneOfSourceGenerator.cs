@@ -425,7 +425,8 @@ namespace DotPointers.OneOf.Generator
 				{
 					sb.Append(", Action OnEmpty");
 				}
-				sb.AppendLine(")");
+				sb.Append(")");
+				sb.AppendLine();
 				using (sb.EnterScope())
 				{
 					sb.AppendLine("switch(_kind)");
@@ -464,7 +465,8 @@ namespace DotPointers.OneOf.Generator
 				{
 					sb.Append(", Func<TResult> OnEmpty");
 				}
-				sb.AppendLine(")");
+				sb.Append(")");
+				sb.AppendLine();
 				using (sb.EnterScope())
 				{
 					sb.AppendLine("switch(_kind)");
@@ -478,6 +480,92 @@ namespace DotPointers.OneOf.Generator
 						if (model.AllowEmpty)
 						{
 							sb.AppendLine("default: { return OnEmpty.Invoke(); }");
+						}
+						else
+						{
+							sb.AppendLine($"default: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
+						}
+					}
+				}
+
+				#endregion
+
+				#region Switch / Match with context
+
+				sb.AppendLine(Inline);
+				sb.AppendIntend();
+				sb.Append($"public{read} void Switch<TContext>(");
+				for (int i = 0; i < count; i++)
+				{
+					var type = model.TypeArgs[i];
+					var field = model.FieldNames[i];
+					sb.Append($"Action<{type.FullName}, TContext> On{field}");
+					if (i < count - 1)
+					{
+						sb.Append(", ");
+					}
+				}
+				if (model.AllowEmpty)
+				{
+					sb.Append(", Action<TContext> OnEmpty");
+				}
+				sb.Append(", TContext context");
+				sb.Append(")");
+				sb.AppendLine();
+				using (sb.EnterScope())
+				{
+					sb.AppendLine("switch(_kind)");
+					using (sb.EnterScope(false))
+					{
+						for (int i = 0; i < count; i++)
+						{
+							var field = model.FieldNames[i];
+							sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ On{field}.Invoke({UnsafeGet(i)}, context); break; }}");
+						}
+						if (model.AllowEmpty)
+						{
+							sb.AppendLine("default: { OnEmpty.Invoke(context); break; }");
+						}
+						else
+						{
+							sb.AppendLine($"default: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
+						}
+					}
+				}
+
+				sb.AppendLine(Inline);
+				sb.AppendIntend();
+				sb.Append($"public{read} TResult Match<TResult, TContext>(");
+				for (int i = 0; i < count; i++)
+				{
+					var type = model.TypeArgs[i];
+					var field = model.FieldNames[i];
+					sb.Append($"Func<{type.FullName}, TContext, TResult> On{field}");
+					if (i < count - 1)
+					{
+						sb.Append(", ");
+					}
+				}
+				if (model.AllowEmpty)
+				{
+					sb.Append(", Func<TContext, TResult> OnEmpty");
+				}
+				sb.Append(", TContext context");
+				sb.Append(")");
+				sb.AppendLine();
+				using (sb.EnterScope())
+				{
+					sb.AppendLine("switch(_kind)");
+					using (sb.EnterScope(false))
+					{
+						for (int i = 0; i < count; i++)
+						{
+							var field = model.FieldNames[i];
+							sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ return On{field}.Invoke({UnsafeGet(i)}, context); }}");
+						}
+						if (model.AllowEmpty)
+						{
+							sb.AppendLine("default: { return OnEmpty.Invoke(context); }");
 						}
 						else
 						{
