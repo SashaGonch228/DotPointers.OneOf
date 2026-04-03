@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace DotPointers.OneOf
 {
-	[GenerateOneOf(new string[] { "Value", "Error" }, false, OneOfLayoutKind.Composition)]
+	[GenerateOneOf(new string[] { "Value", "Error" }, false)]
 	public readonly partial struct Result<T> : IOneOf<T, Exception>
 	{
 		public readonly void EnsureSuccess()

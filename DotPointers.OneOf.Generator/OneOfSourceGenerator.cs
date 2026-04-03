@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace DotPointers.OneOf.Generator
@@ -27,10 +25,10 @@ namespace DotPointers.OneOf.Generator
 			var sb = new IndentedWriter();
 
 			bool hasRef = model.TypeArgs.Any(static t => t.IsReferenceType);
-			bool hasVal = model.TypeArgs.Any(static t => !t.IsReferenceType);
+			bool hasVal = model.TypeArgs.Any(static t => !t.IsReferenceType && !t.IsVoid);
 
 			var uniqTypes = model.TypeArgs.Where(x => model.TypeArgs.Count(y => y.FullName == x.FullName) <= 1).Select(x => model.TypeArgs.IndexOf(x)).ToArray();
-			var sameTypes = model.TypeArgs.Where(x => model.TypeArgs.Count(y => y.FullName == x.FullName) >= 2).Select(x => model.TypeArgs.IndexOf(x)).ToArray();
+			var sameTypes = model.TypeArgs.Select((_, i) => i).Where(i => model.TypeArgs.Count(y => y.FullName == model.TypeArgs[i].FullName) >= 2).ToArray();
 			var allTypes = model.TypeArgs.Select(x => x.FullName).Distinct().Select(x => model.TypeArgs.IndexOf(model.TypeArgs.First(y => y.FullName == x))).ToArray();
 
 			bool hasNamespace = !string.IsNullOrEmpty(model.Namespace);
@@ -69,7 +67,7 @@ namespace DotPointers.OneOf.Generator
 				{
 					for (int i = 0; i < count; i++)
 					{
-						if (!model.TypeArgs[i].IsReferenceType && model.TypeArgs[i].FullName != VoidType)
+						if (!model.TypeArgs[i].IsReferenceType && !model.TypeArgs[i].IsVoid)
 						{
 							sb.AppendLine($"[FieldOffset(0)] public {model.TypeArgs[i].FullName} _v{i};");
 						}
@@ -91,7 +89,10 @@ namespace DotPointers.OneOf.Generator
 			sb.AppendLine();
 			using (sb.EnterScope(false))
 			{
-				sb.AppendLine($"private readonly {enumName} _kind;");
+				if (model.Kind.Pos == KindPosition.Before)
+				{
+					sb.AppendLine($"private readonly {enumName} _kind;");
+				}
 
 				if (layout == OneOfLayoutKind.Boxing)
 				{
@@ -101,13 +102,13 @@ namespace DotPointers.OneOf.Generator
 				{
 					for (int i = 0; i < count; i++)
 					{
-						if (model.TypeArgs[i].FullName != VoidType)
+						if (!model.TypeArgs[i].IsVoid)
 						{
 							sb.AppendLine($"private readonly {model.TypeArgs[i].FullName} _v{i};");
 						}
 					}
 				}
-				else
+				else if (layout == OneOfLayoutKind.ExplicitUnion)
 				{
 					if (hasRef)
 					{
@@ -120,6 +121,26 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine("#pragma warning restore CS0649");
 					}
 				}
+				else if (layout == OneOfLayoutKind.Smart)
+				{
+					if (hasRef)
+					{
+						sb.AppendLine("private readonly object? _ref;");
+					}
+					for (int i = 0; i < count; i++)
+					{
+						if (!model.TypeArgs[i].IsVoid && !model.TypeArgs[i].IsReferenceType)
+						{
+							sb.AppendLine($"private readonly {model.TypeArgs[i].FullName} _v{i};");
+						}
+					}
+				}
+
+				if (model.Kind.Pos == KindPosition.After)
+				{
+					sb.AppendLine($"private readonly {enumName} _kind;");
+				}
+
 				sb.AppendLine();
 
 			#endregion
@@ -131,6 +152,7 @@ namespace DotPointers.OneOf.Generator
 
 				string masterParams = layout switch
 				{
+					OneOfLayoutKind.Smart => string.Join(", ", model.TypeArgs.Select((t, i) => $"{t.FullName} v{i}")),
 					OneOfLayoutKind.Composition => string.Join(", ", model.TypeArgs.Select((t, i) => $"{t.FullName} v{i}")),
 					OneOfLayoutKind.Boxing => "object? value",
 					_ => (hasRef && hasVal) ? "object? @ref, " + unionName + " data" : hasRef ? "object? @ref" : unionName + " data"
@@ -146,9 +168,26 @@ namespace DotPointers.OneOf.Generator
 					{
 						for (int i = 0; i < count; i++)
 						{
-							if (model.TypeArgs[i].FullName != VoidType)
+							if (!model.TypeArgs[i].IsVoid)
 							{
 								sb.AppendLine($"this._v{i} = v{i};");
+							}
+						}
+					}
+					else if (layout == OneOfLayoutKind.Smart)
+					{
+						for (int i = 0; i < count; i++)
+						{
+							if (!model.TypeArgs[i].IsVoid)
+							{
+								if (model.TypeArgs[i].IsReferenceType)
+								{
+									sb.AppendLine($"this._ref = v{i};");
+								}
+								else
+								{
+									sb.AppendLine($"this._v{i} = v{i};");
+								}
 							}
 						}
 					}
@@ -213,10 +252,7 @@ namespace DotPointers.OneOf.Generator
 							{
 								sb.AppendLine($"{ThrowHelper}.ThrowInvalid<{enumName}>(0, 0);");
 							}
-							if (type.FullName != VoidType)
-							{
-								GenerateAssignment(type, -1, sb, indices);
-							}
+							GenerateAssignment(type, -1, sb, indices);
 							sb.AppendLine("this._kind = kind;");
 						}
 					}
@@ -225,9 +261,9 @@ namespace DotPointers.OneOf.Generator
 				if (isClass) sb.AppendLine("#pragma warning restore CS8618");
 				sb.AppendLine("#pragma warning restore CS8618");
 
-				void GenerateAssignment(GenerationModel.TypeInfoModel t, int index, IndentedWriter sb, List<int>? ambiguousIndices = null)
+				void GenerateAssignment(TypeInfoModel t, int index, IndentedWriter sb, List<int>? ambiguousIndices = null)
 				{
-					if (t.FullName == VoidType) { return; }
+					if (t.IsVoid) { return; }
 
 					if (t.IsReferenceType)
 					{
@@ -273,24 +309,24 @@ namespace DotPointers.OneOf.Generator
 					sb.AppendLine(Inline);
 					if (uniqTypes.Contains(i))
 					{
-						if (type.FullName == VoidType)
+						if (type.IsVoid)
 						{
 							sb.AppendLine($"public static {model.FullName} From{field}() => new(default({VoidType}));");
 						}
 						else
 						{
-							sb.AppendLine($"public static {model.FullName} From{field}({type.FullName} obj) => new(obj)");
+							sb.AppendLine($"public static {model.FullName} From{field}({type.FullName} obj) => new(obj);");
 						}
 					}
 					else
 					{
-						if (type.FullName == VoidType)
+						if (type.IsVoid)
 						{
 							sb.AppendLine($"public static {model.FullName} From{field}() => new(default({VoidType}), {enumName}.{field});");
 						}
 						else
 						{
-							sb.AppendLine($"public static {model.FullName} From{field}({type.FullName} obj) => new(obj, {enumName}.{field})");
+							sb.AppendLine($"public static {model.FullName} From{field}({type.FullName} obj) => new(obj, {enumName}.{field});");
 						}
 					}
 				}
@@ -701,6 +737,8 @@ namespace DotPointers.OneOf.Generator
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
 
+					if (type.IsVoid) { continue; }
+
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public{read} {model.FullName} Map{field}(Func<{type.FullName}, {type.FullName}> mapper)");
 					using (sb.EnterScope())
@@ -728,9 +766,9 @@ namespace DotPointers.OneOf.Generator
 				if (!model.IsRef)
 				{
 					if (!model.UserFuncs.Any(f =>
-						f.Item1 == "Equals" &&
-						f.Item2.Length == 1 &&
-						f.Item2[0] == model.FullName))
+						f.Name == "Equals" &&
+						f.Parameters.Length == 1 &&
+						f.Parameters[0] == model.FullName))
 					{
 						sb.AppendLine($"public{read} bool Equals({model.FullName}{(isClass ? "?" : string.Empty)} other)");
 						using (sb.EnterScope())
@@ -754,17 +792,17 @@ namespace DotPointers.OneOf.Generator
 					}
 
 					if (!model.UserFuncs.Any(f =>
-						f.Item1 == "Equals" &&
-						f.Item2.Length == 1 &&
-						(f.Item2[0] == "object?" || f.Item2[0] == "object")))
+						f.Name == "Equals" &&
+						f.Parameters.Length == 1 &&
+						(f.Parameters[0] == "object?" || f.Parameters[0] == "object")))
 					{
 						sb.AppendLine($"public{read} override bool Equals(object? obj) => obj is " + model.FullName + " other && Equals(other);");
 						sb.AppendLine();
 					}
 
 					if (!model.UserFuncs.Any(f =>
-						f.Item1 == "GetHashCode()" &&
-						f.Item2.Length == 0))
+						f.Name == "GetHashCode()" &&
+						f.Parameters.Length == 0))
 					{
 						sb.AppendLine($"public{read} override int GetHashCode()");
 						using (sb.EnterScope())
@@ -824,6 +862,7 @@ namespace DotPointers.OneOf.Generator
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
 					if (model.TypeArgs.Count(x => x.FullName == type.FullName) >= 2) { continue; }
+					if (type.FullName == "object") { continue; }
 					sb.AppendLine(Inline);
 					sb.AppendIntend();
 					sb.Append($"public static implicit operator {model.FullName}({type.FullName} value) => ");
@@ -862,61 +901,11 @@ namespace DotPointers.OneOf.Generator
 
 				#endregion
 
-				#region Tuple Conversion 
-
-				if (!model.IsRef && model.TypeArgs.Length <= 7)
-				{
-					var tupleTypes = string.Join(", ", model.TypeArgs.Select(t => $"{t.FullName}?"));
-					var tupleFull = $"(int Kind, {tupleTypes})";
-
-					sb.AppendLine($"public{read} {tupleFull} AsTuple => _kind switch");
-					sb.AppendLine("{");
-					sb.Increase();
-
-					for (int i = 0; i < count; i++)
-					{
-						var values = Enumerable.Repeat("default", count).ToArray();
-						values[i] = UnsafeGet(i);
-						sb.AppendLine($"{enumName}.{model.FieldNames[i]} => ({i + 1}, {string.Join(", ", values)}),");
-					}
-					sb.AppendLine("_ => (0, " + string.Join(", ", Enumerable.Repeat("default", count)) + ")");
-
-					sb.Decrease();
-					sb.AppendLine("};");
-					sb.AppendLine();
-
-					sb.AppendLine(Inline);
-					sb.AppendLine($"public static {model.FullName} FromTuple({tupleFull} tuple) => tuple.Kind switch");
-					sb.AppendLine("{");
-					sb.Increase();
-					for (int i = 0; i < count; i++)
-					{
-						if (sameTypes.Contains(i))
-						{
-							sb.AppendLine($"{i + 1} => new(({model.TypeArgs[i].FullName})tuple.Item{i + 2}!, {enumName}.{model.FieldNames[i]}),");
-						}
-						else
-						{
-							sb.AppendLine($"{i + 1} => new(({model.TypeArgs[i].FullName})tuple.Item{i + 2}!),");
-						}
-					}
-					sb.AppendLine($"_ => {(model.AllowEmpty ? "Empty" : $"{ThrowHelper}.ThrowEmpty<{model.FullName}>()")}");
-					sb.Decrease();
-					sb.AppendLine("};");
-					sb.AppendLine();
-
-					sb.AppendLine(Inline);
-					sb.AppendLine($"public static implicit operator {model.FullName}({tupleFull} tuple) => FromTuple(tuple);");
-					sb.AppendLine();
-				}
-
-				#endregion
-
 				#region ToString / DebuggerDisplay
 
 				if (!model.UserFuncs.Any(f =>
-						f.Item1 == "ToString" &&
-						f.Item2.Length == 0))
+						f.Name == "ToString" &&
+						f.Parameters.Length == 0))
 				{
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public{read} override string? ToString() => _kind switch");
@@ -1038,7 +1027,7 @@ namespace DotPointers.OneOf.Generator
 				}
 				#endregion
 
-				sb.AppendLine($"public enum {enumName} : int");
+				sb.AppendLine($"public enum {enumName} : {model.Kind.Size.ToString().ToLower()}");
 				using (sb.EnterScope(false))
 				{
 					sb.AppendLine("Empty = 0,");
@@ -1061,15 +1050,11 @@ namespace DotPointers.OneOf.Generator
 			{
 				var type = model.TypeArgs[i];
 
-				if (model.TypeArgs[i].FullName == VoidType) { return $"default({VoidType})"; }
+				if (model.TypeArgs[i].IsVoid) { return $"default({VoidType})"; }
 
 				if (layout == OneOfLayoutKind.Boxing)
 				{
 					return $"({type.FullName})_value!";
-				}
-				else if (layout == OneOfLayoutKind.Composition)
-				{
-					return $"_v{i}!";
 				}
 				else if (layout == OneOfLayoutKind.ExplicitUnion)
 				{
@@ -1082,6 +1067,21 @@ namespace DotPointers.OneOf.Generator
 						return $"_data._v{i}";
 					}
 				}
+				else if (layout == OneOfLayoutKind.Composition)
+				{
+					return $"_v{i}!";
+				}
+				else if (layout == OneOfLayoutKind.Smart)
+				{
+					if (type.IsReferenceType)
+					{
+						return $"({type.FullName})_ref!";
+					}
+					else
+					{
+						return $"_v{i}";
+					}
+				}
 				return string.Empty;
 			}
 
@@ -1089,7 +1089,7 @@ namespace DotPointers.OneOf.Generator
 			{
 				var type = model.TypeArgs[i];
 
-				if (model.TypeArgs[i].FullName == VoidType) { return $""; }
+				if (model.TypeArgs[i].IsVoid) { return ""; }
 
 				if (layout == OneOfLayoutKind.Boxing)
 				{
@@ -1099,14 +1099,29 @@ namespace DotPointers.OneOf.Generator
 				{
 					return $"_v{i}";
 				}
-				else if (type.IsReferenceType)
+				else if (layout == OneOfLayoutKind.ExplicitUnion)
 				{
-					return "_ref";
+					if (type.IsReferenceType)
+					{
+						return "_ref";
+					}
+					else
+					{
+						return $"_data._v{i}";
+					}
 				}
-				else
+				else if (layout == OneOfLayoutKind.Smart)
 				{
-					return $"_data._v{i}";
+					if (type.IsReferenceType)
+					{
+						return "_ref";
+					}
+					else
+					{
+						return $"_v{i}";
+					}
 				}
+				return string.Empty;
 			}
 		}
 
@@ -1595,38 +1610,53 @@ namespace DotPointers.OneOf.Generator
 			return sb.ToString();
 		}
 
-		private static (OneOfLayoutKind Strategy, string Reason) DetermineLayout(GenerationModel model)
+		private static (OneOfLayoutKind Layout, string Reason) DetermineLayout(GenerationModel model)
 		{
-			bool isClass = model.TypeKind.Contains("class");
+			var layout = model.RequestedLayout;
+
 			bool hasRefStructInside = model.TypeArgs.Any(t => t.IsRefStruct);
 
-			if (model.RequestedLayout == OneOfLayoutKind.Boxing)
+			bool canUseUnion = !model.IsGeneric &&
+							   !hasRefStructInside &&
+							   !model.TypeArgs.Any(t => !t.IsReferenceType && t.HasReferences);
+
+			bool canUseBoxing = !hasRefStructInside;
+
+			if (layout == OneOfLayoutKind.ExplicitUnion && !canUseUnion)
 			{
-				if (hasRefStructInside)
-				{
-					return (OneOfLayoutKind.Composition, "Boxing is impossible with ref structs");
-				}
-				return (OneOfLayoutKind.Boxing, string.Empty);
+				return (OneOfLayoutKind.Composition, "ExplicitUnion is invalid for generics or managed structs");
 			}
 
-			if (model.RequestedLayout == OneOfLayoutKind.ExplicitUnion)
+			if (layout == OneOfLayoutKind.Boxing && !canUseBoxing)
 			{
-				if (isClass)
-				{
-					return (OneOfLayoutKind.Composition, "ExplicitUnion is not supported for classes");
-				}
-				if (model.IsGeneric)
-				{
-					return (OneOfLayoutKind.Composition, "ExplicitUnion is unstable with generic value types");
-				}
-				if (hasRefStructInside)
-				{
-					return (OneOfLayoutKind.Composition, "ExplicitUnion is not supported with ref structs");
-				}
-				return (OneOfLayoutKind.ExplicitUnion, string.Empty);
+				return (OneOfLayoutKind.Composition, "Boxing is invalid for ref structs");
 			}
 
-			return (OneOfLayoutKind.Composition, "Default fallback");
+			if (layout != OneOfLayoutKind.Auto)
+			{
+				return (layout, string.Empty);
+			}
+
+			// Auto
+
+			if (model.TypeArgs.All(t => t.IsReferenceType))
+			{
+				return (OneOfLayoutKind.Boxing, "Auto: All types are reference types");
+			}
+
+			int structCount = model.TypeArgs.Count(t => !t.IsReferenceType && !t.IsVoid);
+			if (structCount > 1 && canUseUnion)
+			{
+				return (OneOfLayoutKind.ExplicitUnion, "Auto: Multiple structures detected, using union to save space");
+			}
+
+			int refTypeCount = model.TypeArgs.Count(t => t.IsReferenceType);
+			if (refTypeCount > 1)
+			{
+				return (OneOfLayoutKind.Smart, "Auto: Multiple reference types detected, using smart layout");
+			}
+
+			return (OneOfLayoutKind.Composition, "Auto: Defaulting to composition");
 		}
 	}
 }

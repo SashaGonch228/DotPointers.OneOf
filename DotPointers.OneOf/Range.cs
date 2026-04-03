@@ -2,7 +2,7 @@
 
 namespace DotPointers.OneOf
 {
-	[GenerateOneOf(new[] { "Single", "Between", "Any", "None" }, false, OneOfLayoutKind.ExplicitUnion)]
+	[GenerateOneOf(new[] { "Single", "Between", "Any", "None" }, false)]
 	public readonly partial struct Range : IOneOf<int, (int, int), Void, Void>
 	{
 		public bool InRange(int value) => Match(
@@ -13,7 +13,7 @@ namespace DotPointers.OneOf
 		);
 	}
 
-	[GenerateOneOf(new[] { "Single", "Between", "Any", "None" }, false, OneOfLayoutKind.Composition)]
+	[GenerateOneOf(new[] { "Single", "Between", "Any", "None" }, false)]
 	public readonly partial struct Range<T> : IOneOf<T, (T Min, T Max), Void, Void> where T : struct, IComparable<T>
 	{
 		public bool InRange(T value) => Match(

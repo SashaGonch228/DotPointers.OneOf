@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace DotPointers.OneOf
 {
-	[GenerateOneOf(new[] { "Number", "Text" }, false, OneOfLayoutKind.Composition)]
+	[GenerateOneOf(new[] { "Number", "Text" }, false)]
 	public readonly partial struct Numeric : IOneOf<double, string>
 	{
 		public bool IsParsed => IsNumber || (IsText && double.TryParse(Text, NumberStyles.Any, CultureInfo.InvariantCulture, out _));
@@ -24,7 +24,7 @@ namespace DotPointers.OneOf
 		public static implicit operator Numeric(int value) => new(value);
 	}
 
-	[GenerateOneOf(new[] { "Number", "Text" }, false, OneOfLayoutKind.Composition)]
+	[GenerateOneOf(new[] { "Number", "Text" }, false)]
 	public readonly partial struct IntNumeric : IOneOf<int, string>
 	{
 		public bool IsParsed => IsNumber || (IsText && int.TryParse(Text, NumberStyles.Any, CultureInfo.InvariantCulture, out _));

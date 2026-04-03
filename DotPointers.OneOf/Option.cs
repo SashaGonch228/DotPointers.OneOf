@@ -1,6 +1,6 @@
 ﻿namespace DotPointers.OneOf
 {
-	[GenerateOneOf(new[] { "Value" }, true, OneOfLayoutKind.Composition)]
+	[GenerateOneOf(new[] { "Value" }, true)]
 	public readonly partial struct Option<T> : IOneOf<T>
 	{
 		public T? GetValueOrDefault() => IsValue ? Value : default;

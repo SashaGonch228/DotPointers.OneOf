@@ -2,12 +2,11 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
-using static DotPointers.OneOf.Generator.GenerationModel;
 
 namespace DotPointers.OneOf.Generator
 {
@@ -15,31 +14,23 @@ namespace DotPointers.OneOf.Generator
 	public class OneOfGenerator : IIncrementalGenerator
 	{
 		private const string AttrName = "DotPointers.OneOf.GenerateOneOfAttribute";
-		
 
-		private static readonly SymbolDisplayFormat TypeNameFormat = new SymbolDisplayFormat( 
+		private static readonly SymbolDisplayFormat TypeNameFormat = new(
 			typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameOnly,
 			genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
 		public void Initialize(IncrementalGeneratorInitializationContext context)
 		{
-//#if DEBUG
-//			if (!System.Diagnostics.Debugger.IsAttached)
-//			{
-//				System.Diagnostics.Debugger.Launch();
-//			}
-//#endif
-
 			var targets = context.SyntaxProvider.ForAttributeWithMetadataName(
 				fullyQualifiedMetadataName: AttrName,
 				predicate: static (node, _) => node is TypeDeclarationSyntax,
 				transform: static (ctx, _) => GetModel(ctx))
-				.Where(static x => x != null)
-				.WithComparer(GenerationModelComparer.Instance)!;
+				.Where(static x => x is not null)!;
 
 			context.RegisterSourceOutput(targets, static (spc, model) =>
 			{
 				if (model == null) { return; }
+
 				var source = OneOfSourceGenerator.GenerateSource(model);
 				var ns = string.IsNullOrEmpty(model.Namespace) ? "Global" : model.Namespace;
 				var path = $"{ns}.{model.FullName.Replace('<', '(').Replace('>', ')')}";
@@ -63,7 +54,7 @@ namespace DotPointers.OneOf.Generator
 			});
 
 			var uniqueNamespaces = targets
-				.Select(static (m, _) => m?.Namespace)
+				.Select(static (m, _) => m!.Namespace)
 				.Collect()
 				.SelectMany(static (namespaces, _) => namespaces.Distinct());
 
@@ -82,19 +73,12 @@ namespace DotPointers.OneOf.Generator
 			var allAttributes = symbol.GetAttributes();
 
 			var interfaceSymbol = symbol.AllInterfaces.FirstOrDefault(i =>
-			{
-				return i.Name == "IOneOf" && i.ContainingNamespace.ToDisplayString() == "DotPointers.OneOf";
-			});
+				i.Name == "IOneOf" && i.ContainingNamespace.ToDisplayString() == "DotPointers.OneOf");
 
 			var attributeData = allAttributes.FirstOrDefault(a =>
-			{
-				return a.AttributeClass?.ToDisplayString() == AttrName;
-			});
+				a.AttributeClass?.ToDisplayString() == AttrName);
 
-			if (interfaceSymbol == null || attributeData == null)
-			{
-				return null;
-			}
+			if (interfaceSymbol == null || attributeData == null) { return null; }
 
 			Serialization serialize = 0;
 
@@ -122,171 +106,86 @@ namespace DotPointers.OneOf.Generator
 			var arg0 = attributeData.ConstructorArguments.ElementAtOrDefault(0);
 			if (!arg0.IsNull && arg0.Kind == TypedConstantKind.Array && !arg0.Values.IsDefaultOrEmpty)
 			{
-				fields = arg0.Values.Select(x =>
-				{
-					return x.Value?.ToString() ?? "Unknown";
-				}).ToImmutableArray();
+				fields = arg0.Values.Select(x => x.Value?.ToString() ?? "Unknown").ToImmutableArray();
 			}
 
 			if (fields.Length == 0)
 			{
-				fields = typeArguments.Select((t, i) =>
-				{
-					if (i < defaultFields.Length)
-					{
-						return defaultFields[i];
-					}
-					return t.Name;
-				}).ToImmutableArray();
+				fields = typeArguments.Select((t, i) => i < defaultFields.Length ? defaultFields[i] : t.Name).ToImmutableArray();
 			}
 
 			var allowEmpty = (bool)(attributeData.ConstructorArguments.ElementAtOrDefault(1).Value ?? true);
 			var requestedLayout = (OneOfLayoutKind)(int)(attributeData.ConstructorArguments.ElementAtOrDefault(2).Value ?? 0);
+			var kind = (
+				(KindPosition)(attributeData.ConstructorArguments.ElementAtOrDefault(3).Value ?? 0),
+				(KindSize)(attributeData.ConstructorArguments.ElementAtOrDefault(4).Value ?? 0)
+			);
 
-			var types = typeArguments.Select(t =>
-			{
-				return new TypeInfoModel(
-					fullName: t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-					shortName: t.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-					isReferenceType: t.IsReferenceType,
-					isRefStruct: t.IsRefLikeType
-				);
-			}).ToImmutableArray();
+			var types = typeArguments.Select(t => new TypeInfoModel(
+				FullName: t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+				ShortName: t.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+				IsReferenceType: t.IsReferenceType,
+				IsRefStruct: t.IsRefLikeType,
+				HasReferences: !t.IsUnmanagedType
+			)).ToImmutableArray();
 
 			var userMethods = symbol.GetMembers()
-			.OfType<IMethodSymbol>()
-			.Where(m => m.MethodKind == MethodKind.Ordinary && !m.IsImplicitlyDeclared)
-			.Select(m => (
-				m.Name,
-				m.Parameters.Select(p => p.Type.ToDisplayString(TypeNameFormat)).ToImmutableArray()
-			))
-			.ToImmutableArray();
-
+				.OfType<IMethodSymbol>()
+				.Where(m => m.MethodKind == MethodKind.Ordinary && !m.IsImplicitlyDeclared)
+				.Select(m => new UserMethodModel(
+					m.Name,
+					m.Parameters.Select(p => p.Type.ToDisplayString(TypeNameFormat)).ToImmutableArray().AsEquatableArray()
+				))
+				.ToImmutableArray();
 
 			return new GenerationModel(
-				@namespace: symbol.ContainingNamespace.IsGlobalNamespace ? string.Empty : symbol.ContainingNamespace.ToDisplayString(),
-				name: symbol.Name,
-				fullName: symbol.ToDisplayString(TypeNameFormat),
-				typeKind: symbol.IsValueType ? (symbol.IsRefLikeType ? "ref struct" : "struct") : "class",
-				allowEmpty: allowEmpty,
-				requestedLayout: requestedLayout,
-				isGeneric: symbol.IsGenericType,
-				isRef: symbol.IsRefLikeType,
-				typeArgs: types,
-				fieldNames: fields,
-				userFuncs: userMethods,
-				serializeOption: serialize
+				Namespace: symbol.ContainingNamespace.IsGlobalNamespace ? string.Empty : symbol.ContainingNamespace.ToDisplayString(),
+				Name: symbol.Name,
+				FullName: symbol.ToDisplayString(TypeNameFormat),
+				TypeKind: symbol.IsValueType ? (symbol.IsRefLikeType ? "ref struct" : "struct") : "class",
+				AllowEmpty: allowEmpty,
+				RequestedLayout: requestedLayout,
+				IsGeneric: symbol.IsGenericType,
+				IsRef: symbol.IsRefLikeType,
+				TypeArgs: types.AsEquatableArray(),
+				FieldNames: fields.AsEquatableArray(),
+				UserFuncs: userMethods.AsEquatableArray(),
+				SerializeOption: serialize,
+				Kind: kind
 			);
 		}
 	}
 
-	public class GenerationModel
+	public record GenerationModel(
+		string Namespace,
+		string Name,
+		string FullName,
+		string TypeKind,
+		bool AllowEmpty,
+		OneOfLayoutKind RequestedLayout,
+		bool IsGeneric,
+		bool IsRef,
+		EquatableArray<TypeInfoModel> TypeArgs,
+		EquatableArray<string> FieldNames,
+		EquatableArray<UserMethodModel> UserFuncs,
+		Serialization SerializeOption,
+		(KindPosition Pos, KindSize Size) Kind
+	);
+
+	public record TypeInfoModel(string FullName, string ShortName, bool IsReferenceType, bool IsRefStruct, bool HasReferences)
 	{
-		public GenerationModel(string @namespace, string name, string fullName, string typeKind, bool allowEmpty, OneOfLayoutKind requestedLayout, bool isGeneric, bool isRef, ImmutableArray<TypeInfoModel> typeArgs, ImmutableArray<string> fieldNames, ImmutableArray<(string, ImmutableArray<string>)> userFuncs, Serialization serializeOption)
-		{
-			Namespace = @namespace;
-			Name = name;
-			FullName = fullName;
-			TypeKind = typeKind;
-			AllowEmpty = allowEmpty;
-			RequestedLayout = requestedLayout;
-			IsGeneric = isGeneric;
-			IsRef = isRef;
-			TypeArgs = typeArgs;
-			FieldNames = fieldNames;
-			UserFuncs = userFuncs;
-			SerializeOption = serializeOption;
-		}
-
-		public string Namespace { get; }
-		public string Name { get; }
-		public string FullName { get; }
-		public string TypeKind { get; }
-		public bool AllowEmpty { get; }
-		public OneOfLayoutKind RequestedLayout { get; }
-		public bool IsGeneric { get; }
-		public bool IsRef { get; }
-		public ImmutableArray<TypeInfoModel> TypeArgs { get; }
-		public ImmutableArray<string> FieldNames { get; }
-		public ImmutableArray<(string, ImmutableArray<string>)> UserFuncs { get; }
-		public Serialization SerializeOption { get; }
-
-		public class TypeInfoModel
-		{
-			public TypeInfoModel(string fullName, string shortName, bool isReferenceType, bool isRefStruct)
-			{
-				FullName = fullName;
-				ShortName = shortName;
-				IsReferenceType = isReferenceType;
-				IsRefStruct = isRefStruct;
-			}
-			public string FullName { get; }
-			public string ShortName { get; }
-			public bool IsReferenceType { get; }
-			public bool IsRefStruct { get; }
-		}
+		public bool IsVoid => FullName == "global::DotPointers.OneOf.Void";
 	}
 
-	internal class GenerationModelComparer : IEqualityComparer<GenerationModel?>
-	{
-		public static readonly GenerationModelComparer Instance = new();
-		public bool Equals(GenerationModel? x, GenerationModel? y)
-		{
-			if (ReferenceEquals(x, y))
-			{
-				return true;
-			}
-			if (x == null || y == null)
-			{
-				return false;
-			}
-			return x.Namespace == y.Namespace &&
-				   x.Name == y.Name &&
-				   x.FullName == y.FullName &&
-				   x.TypeKind == y.TypeKind &&
-				   x.AllowEmpty == y.AllowEmpty &&
-				   x.RequestedLayout == y.RequestedLayout &&
-				   x.IsGeneric == y.IsGeneric &&
-				   x.IsRef == y.IsRef &&
-				   x.FieldNames.SequenceEqual(y.FieldNames) &&
-				   x.TypeArgs.SequenceEqual(y.TypeArgs, TypeInfoModelComparer.Instance) &&
-				   x.UserFuncs.SequenceEqual(y.UserFuncs) &&
-				   x.SerializeOption == y.SerializeOption;
-		}
-		public int GetHashCode(GenerationModel? obj)
-		{
-			if (obj == null)
-			{
-				return 0;
-			}
-			unchecked
-			{
-				int hash = 17;
-				hash = hash * 23 + (obj.FullName?.GetHashCode() ?? 0);
-				hash = hash * 23 + (int)obj.RequestedLayout;
-				return hash;
-			}
-		}
-	}
-
-	internal class TypeInfoModelComparer : IEqualityComparer<TypeInfoModel>
-	{
-		public static readonly TypeInfoModelComparer Instance = new();
-		public bool Equals(TypeInfoModel x, TypeInfoModel y)
-		{
-			return x.FullName == y.FullName && x.IsReferenceType == y.IsReferenceType && x.IsRefStruct == y.IsRefStruct;
-		}
-		public int GetHashCode(TypeInfoModel obj)
-		{
-			return obj.FullName?.GetHashCode() ?? 0;
-		}
-	}
+	public record UserMethodModel(string Name, EquatableArray<string> Parameters);
 
 	public enum OneOfLayoutKind : int
 	{
-		ExplicitUnion = 0,
-		Composition = 1,
-		Boxing = 2
+		Auto = 0,
+		Smart = 1,
+		Composition = 2,
+		ExplicitUnion = 3,
+		Boxing = 4
 	}
 
 	[Flags]
@@ -297,4 +196,77 @@ namespace DotPointers.OneOf.Generator
 		NewtonsoftJson = 2,
 		MemoryPack = 4
 	}
+
+	public enum KindPosition { Before, After }
+	public enum KindSize { Byte, Short, Int, Long }
+
+	public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnumerable<T> where T : IEquatable<T>
+	{
+		private readonly ImmutableArray<T> _array;
+
+		public EquatableArray(ImmutableArray<T> array)
+		{
+			_array = array;
+		}
+
+		public bool Equals(EquatableArray<T> other)
+		{
+			if (_array.Length != other._array.Length) { return false; }
+			for (int i = 0; i < _array.Length; i++)
+			{
+				if (!_array[i].Equals(other._array[i])) { return false; }
+			}
+			return true;
+		}
+
+		public T this[int index] => _array[index];
+		public int Length => _array.Length;
+		public int IndexOf(T item) => _array.IndexOf(item);
+
+		public override bool Equals(object? obj)
+		{
+			return obj is EquatableArray<T> other && Equals(other);
+		}
+
+		public override int GetHashCode()
+		{
+			if (_array.IsDefaultOrEmpty) { return 0; }
+
+			unchecked
+			{
+				int hash = 17;
+				foreach (var item in _array)
+				{
+					hash = (hash * 31) + (item?.GetHashCode() ?? 0);
+				}
+				return hash;
+			}
+		}
+
+		public static implicit operator EquatableArray<T>(ImmutableArray<T> array) => new(array);
+		public static implicit operator ImmutableArray<T>(EquatableArray<T> array) => array._array;
+
+		public IEnumerator<T> GetEnumerator()
+		{
+			return ((IEnumerable<T>)(_array.IsDefault ? Enumerable.Empty<T>() : _array)).GetEnumerator();
+		}
+
+		IEnumerator IEnumerable.GetEnumerator()
+		{
+			return GetEnumerator();
+		}
+	}
+
+	public static class EquatableArrayExtensions
+	{
+		public static EquatableArray<T> AsEquatableArray<T>(this ImmutableArray<T> array) where T : IEquatable<T>
+		{
+			return new EquatableArray<T>(array);
+		}
+	}
+}
+
+namespace System.Runtime.CompilerServices
+{
+	internal static class IsExternalInit { }
 }

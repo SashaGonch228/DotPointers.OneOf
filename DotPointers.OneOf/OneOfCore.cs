@@ -8,7 +8,7 @@ namespace DotPointers.OneOf
 		public GenerateOneOfAttribute() { }
 #pragma warning disable RCS1163
 #pragma warning disable IDE0060
-		public GenerateOneOfAttribute(string[]? FieldNames = null, bool AllowEmpty = false, OneOfLayoutKind Layout = OneOfLayoutKind.ExplicitUnion) { }
+		public GenerateOneOfAttribute(string[]? FieldNames = null, bool AllowEmpty = false, OneOfLayoutKind Layout = OneOfLayoutKind.Auto, KindPosition KindPos = KindPosition.Before, KindSize KindSize = KindSize.Int) { }
 #pragma warning restore IDE0060
 #pragma warning restore RCS1163
 	}
@@ -54,9 +54,11 @@ namespace DotPointers.OneOf
 
 	public enum OneOfLayoutKind : int
 	{
-		ExplicitUnion = 0,
-		Composition = 1,
-		Boxing = 2
+		Auto = 0,
+		Smart = 1,
+		Composition = 2,
+		ExplicitUnion = 3,
+		Boxing = 4
 	}
 
 	public enum OneOfKind : int
@@ -71,4 +73,7 @@ namespace DotPointers.OneOf
 		Seventh = 7,
 		Eighth = 8
 	}
+
+	public enum KindPosition { Before, After }
+	public enum KindSize { Byte, Short, Int, Long }
 }
