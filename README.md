@@ -1,8 +1,8 @@
 # DotPointers.OneOf
 
 [![NuGet](https://img.shields.io/nuget/v/DotPointers.OneOf.svg)](https://www.nuget.org/packages/DotPointers.OneOf/)
-![License](https://img.shields.io/github/license/SashaGonch228/DotPointers.OneOf)
-![GitHub Stars](https://img.shields.io/github/stars/SashaGonch228/DotPointers.OneOf?style=social)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/SashaGonch228/DotPointers.OneOf/dotnet.yml?branch=main)](https://github.com/SashaGonch228/DotPointers.OneOf/actions)
 
 <img src="logo.png" align="right" width="160px" />
 
