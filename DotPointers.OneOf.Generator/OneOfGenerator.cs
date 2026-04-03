@@ -23,12 +23,12 @@ namespace DotPointers.OneOf.Generator
 
 		public void Initialize(IncrementalGeneratorInitializationContext context)
 		{
-			//#if DEBUG
-			//if (!System.Diagnostics.Debugger.IsAttached)
-			//{ 
-			//		System.Diagnostics.Debugger.Launch();
-			//}
-			//#endif
+//#if DEBUG
+//			if (!System.Diagnostics.Debugger.IsAttached)
+//			{
+//				System.Diagnostics.Debugger.Launch();
+//			}
+//#endif
 
 			var targets = context.SyntaxProvider.ForAttributeWithMetadataName(
 				fullyQualifiedMetadataName: AttrName,
@@ -41,7 +41,8 @@ namespace DotPointers.OneOf.Generator
 			{
 				if (model == null) { return; }
 				var source = OneOfSourceGenerator.GenerateSource(model);
-				var path = $"{model.Namespace}.{model.FullName.Replace('<', '(').Replace('>', ')')}";
+				var ns = string.IsNullOrEmpty(model.Namespace) ? "Global" : model.Namespace;
+				var path = $"{ns}.{model.FullName.Replace('<', '(').Replace('>', ')')}";
 
 				spc.AddSource($"{path}.g.cs", SourceText.From(source, Encoding.UTF8));
 
@@ -163,7 +164,7 @@ namespace DotPointers.OneOf.Generator
 
 
 			return new GenerationModel(
-				@namespace: symbol.ContainingNamespace.ToDisplayString(),
+				@namespace: symbol.ContainingNamespace.IsGlobalNamespace ? string.Empty : symbol.ContainingNamespace.ToDisplayString(),
 				name: symbol.Name,
 				fullName: symbol.ToDisplayString(TypeNameFormat),
 				typeKind: symbol.IsValueType ? (symbol.IsRefLikeType ? "ref struct" : "struct") : "class",
