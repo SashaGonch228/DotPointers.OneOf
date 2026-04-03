@@ -1,9 +1,7 @@
 # DotPointers.OneOf
 
 [![NuGet](https://img.shields.io/nuget/v/DotPointers.OneOf.svg)](https://www.nuget.org/packages/DotPointers.OneOf/)
-
 ![License](https://img.shields.io/github/license/SashaGonch228/DotPointers.OneOf)
-
 ![GitHub Stars](https://img.shields.io/github/stars/SashaGonch228/DotPointers.OneOf?style=social)
 
 <img src="logo.png" align="right" width="160px" />
