@@ -264,6 +264,39 @@ namespace DotPointers.OneOf.Generator
 					sb.AppendLine();
 				}
 
+				#region From
+				for (int i = 0; i < count; i++)
+				{
+					var type = model.TypeArgs[i];
+					var field = model.FieldNames[i];
+
+					sb.AppendLine(Inline);
+					if (uniqTypes.Contains(i))
+					{
+						if (type.FullName == VoidType)
+						{
+							sb.AppendLine($"public static {model.FullName} From{field}() => new(default({VoidType}));");
+						}
+						else
+						{
+							sb.AppendLine($"public static {model.FullName} From{field}({type.FullName} obj) => new(obj)");
+						}
+					}
+					else
+					{
+						if (type.FullName == VoidType)
+						{
+							sb.AppendLine($"public static {model.FullName} From{field}() => new(default({VoidType}), {enumName}.{field});");
+						}
+						else
+						{
+							sb.AppendLine($"public static {model.FullName} From{field}({type.FullName} obj) => new(obj, {enumName}.{field})");
+						}
+					}
+				}
+				sb.AppendLine();
+				#endregion
+
 				#region GetForce
 
 				for (int i = 0; i < count; i++)
