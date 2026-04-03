@@ -31,6 +31,7 @@ namespace DotPointers.OneOf.Generator
 
 			var uniqTypes = model.TypeArgs.Where(x => model.TypeArgs.Count(y => y.FullName == x.FullName) <= 1).Select(x => model.TypeArgs.IndexOf(x)).ToArray();
 			var sameTypes = model.TypeArgs.Where(x => model.TypeArgs.Count(y => y.FullName == x.FullName) >= 2).Select(x => model.TypeArgs.IndexOf(x)).ToArray();
+			var allTypes = model.TypeArgs.Select(x => x.FullName).Distinct().Select(x => model.TypeArgs.IndexOf(model.TypeArgs.First(y => y.FullName == x))).ToArray();
 
 			bool hasNamespace = !string.IsNullOrEmpty(model.Namespace);
 
@@ -910,7 +911,98 @@ namespace DotPointers.OneOf.Generator
 				sb.Decrease();
 				sb.AppendLine("};");
 				sb.AppendLine("#endif");
+				sb.AppendLine();
 
+				#endregion
+
+				#region Chain
+
+				sb.AppendLine(Inline);
+				sb.AppendLine("public ChainContext Chain() => new(this);");
+
+				sb.AppendLine("public readonly ref struct ChainContext");
+				using (sb.EnterScope())
+				{
+					sb.AppendLine($"private readonly {model.FullName} _source;");
+					sb.AppendLine("private readonly bool _consumed;");
+					sb.AppendLine("private readonly bool _matched;");
+					sb.AppendLine();
+
+					sb.AppendLine(Inline);
+					sb.AppendLine($"internal ChainContext({model.FullName} source, bool consumed = false, bool matched = false)");
+					using (sb.EnterScope())
+					{
+						sb.AppendLine("_source = source;");
+						sb.AppendLine("_consumed = consumed;");
+						sb.AppendLine("_matched = matched;");
+					}
+
+					for (int i = 0; i < count; i++)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public ChainContext If{field}(Predicate<{type.FullName}> predicate)");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine("if (_consumed) { return this; }");
+
+							sb.AppendLine($"return new ChainContext(_source, false, _source.Kind == {enumName}.{field} && predicate.Invoke(_source.{field}Force));");
+						}
+
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public ChainContext If{field}()");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine("if (_consumed) { return this; }");
+
+							sb.AppendLine($"return new ChainContext(_source, false, _source.Kind == {enumName}.{field});");
+						}
+					}
+
+					foreach (var i in allTypes)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public readonly ChainContext Then(Action<{type.FullName}> action)");
+						using (sb.EnterScope())
+						{
+							sb.AppendLine("if (_consumed || !_matched) { return this; }");
+							sb.AppendLine($"action.Invoke(_source.{field});");
+							sb.AppendLine("return new ChainContext(_source, true, false);");
+						}
+					}
+
+					sb.AppendLine(Inline);
+					sb.AppendLine($"public readonly void Else(Action<{model.FullName}> action)");
+					using (sb.EnterScope())
+					{
+						sb.AppendLine("if (!_consumed) { action.Invoke(_source); }");
+					}
+
+					sb.AppendLine(Inline);
+					sb.AppendLine("public readonly void End() { }");
+					sb.AppendLine();
+
+					sb.AppendLine(Inline);
+					sb.AppendLine("public readonly ChainContext Break()");
+					using (sb.EnterScope())
+					{
+						sb.AppendLine("if (_consumed || !_matched) { return this; }");
+						sb.AppendLine("return new ChainContext(_source, true, false);");
+					}
+
+					sb.AppendLine(Inline);
+					sb.AppendLine($"public readonly ChainContext Continue()");
+					using (sb.EnterScope(false))
+					{
+						sb.AppendLine("if (_consumed) { return new ChainContext(_source, false, false); }");
+						sb.AppendLine("return this;");
+					}
+				}
 				#endregion
 
 				sb.AppendLine($"public enum {enumName} : int");
