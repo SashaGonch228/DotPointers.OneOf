@@ -87,7 +87,7 @@ namespace DotPointers.OneOf.Generator
 				sb.Append($" : IEquatable<{model.FullName}>");
 			}
 			sb.AppendLine();
-			using (sb.EnterScope(false))
+			using (sb.EnterScope())
 			{
 				if (model.Kind.Pos == KindPosition.Before)
 				{
@@ -121,7 +121,7 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine("#pragma warning restore CS0649");
 					}
 				}
-				else if (layout == OneOfLayoutKind.Smart)
+				else if (layout == OneOfLayoutKind.Hybrid)
 				{
 					if (hasRef)
 					{
@@ -152,7 +152,7 @@ namespace DotPointers.OneOf.Generator
 
 				string masterParams = layout switch
 				{
-					OneOfLayoutKind.Smart => string.Join(", ", model.TypeArgs.Select((t, i) => $"{t.FullName} v{i}")),
+					OneOfLayoutKind.Hybrid => string.Join(", ", model.TypeArgs.Select((t, i) => $"{t.FullName} v{i}")),
 					OneOfLayoutKind.Composition => string.Join(", ", model.TypeArgs.Select((t, i) => $"{t.FullName} v{i}")),
 					OneOfLayoutKind.Boxing => "object? value",
 					_ => (hasRef && hasVal) ? "object? @ref, " + unionName + " data" : hasRef ? "object? @ref" : unionName + " data"
@@ -174,7 +174,7 @@ namespace DotPointers.OneOf.Generator
 							}
 						}
 					}
-					else if (layout == OneOfLayoutKind.Smart)
+					else if (layout == OneOfLayoutKind.Hybrid)
 					{
 						for (int i = 0; i < count; i++)
 						{
@@ -499,23 +499,17 @@ namespace DotPointers.OneOf.Generator
 				sb.AppendLine();
 				using (sb.EnterScope())
 				{
-					sb.AppendLine("switch(_kind)");
-					using (sb.EnterScope(false))
+					sb.AppendLine("var kind = _kind;");
+					for (int i = 0; i < count; i++)
 					{
-						for (int i = 0; i < count; i++)
-						{
-							var field = model.FieldNames[i];
-							sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ On{field}.Invoke({UnsafeGet(i)}); break; }}");
-						}
-						if (model.AllowEmpty)
-						{
-							sb.AppendLine("default: { OnEmpty.Invoke(); break; }");
-						}
-						else
-						{
-							sb.AppendLine($"default: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
-						}
+						var field = model.FieldNames[i];
+						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ On{field}.Invoke({UnsafeGet(i)}); return; }}");
 					}
+					if (model.AllowEmpty)
+					{
+						sb.AppendLine("if (OnEmpty != null) { OnEmpty.Invoke(); return; }");
+					}
+					sb.AppendLine($"{ThrowHelper}.ThrowEmpty(\"{model.FullName}\");");
 				}
 
 				sb.AppendLine(Inline);
@@ -539,23 +533,17 @@ namespace DotPointers.OneOf.Generator
 				sb.AppendLine();
 				using (sb.EnterScope())
 				{
-					sb.AppendLine("switch(_kind)");
-					using (sb.EnterScope(false))
+					sb.AppendLine("var kind = _kind;");
+					for (int i = 0; i < count; i++)
 					{
-						for (int i = 0; i < count; i++)
-						{
-							var field = model.FieldNames[i];
-							sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ return On{field}.Invoke({UnsafeGet(i)}); }}");
-						}
-						if (model.AllowEmpty)
-						{
-							sb.AppendLine("default: { return OnEmpty.Invoke(); }");
-						}
-						else
-						{
-							sb.AppendLine($"default: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
-						}
+						var field = model.FieldNames[i];
+						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return On{field}.Invoke({UnsafeGet(i)}); }}");
 					}
+					if (model.AllowEmpty)
+					{
+						sb.AppendLine("if (OnEmpty != null) { return OnEmpty.Invoke(); }");
+					}
+					sb.AppendLine($"return {ThrowHelper}.ThrowEmpty<TResult>(\"{model.FullName}\");");
 				}
 
 				#endregion
@@ -584,23 +572,17 @@ namespace DotPointers.OneOf.Generator
 				sb.AppendLine();
 				using (sb.EnterScope())
 				{
-					sb.AppendLine("switch(_kind)");
-					using (sb.EnterScope(false))
+					sb.AppendLine("var kind = _kind;");
+					for (int i = 0; i < count; i++)
 					{
-						for (int i = 0; i < count; i++)
-						{
-							var field = model.FieldNames[i];
-							sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ On{field}.Invoke({UnsafeGet(i)}, context); break; }}");
-						}
-						if (model.AllowEmpty)
-						{
-							sb.AppendLine("default: { OnEmpty.Invoke(context); break; }");
-						}
-						else
-						{
-							sb.AppendLine($"default: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
-						}
+						var field = model.FieldNames[i];
+						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ On{field}.Invoke({UnsafeGet(i)}, context); return; }}");
 					}
+					if (model.AllowEmpty)
+					{
+						sb.AppendLine("if (OnEmpty != null) { OnEmpty.Invoke(context); return; }");
+					}
+					sb.AppendLine($"{ThrowHelper}.ThrowEmpty(\"{model.FullName}\");");
 				}
 
 				sb.AppendLine(Inline);
@@ -625,23 +607,17 @@ namespace DotPointers.OneOf.Generator
 				sb.AppendLine();
 				using (sb.EnterScope())
 				{
-					sb.AppendLine("switch(_kind)");
-					using (sb.EnterScope(false))
+					sb.AppendLine("var kind = _kind;");
+					for (int i = 0; i < count; i++)
 					{
-						for (int i = 0; i < count; i++)
-						{
-							var field = model.FieldNames[i];
-							sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ return On{field}.Invoke({UnsafeGet(i)}, context); }}");
-						}
-						if (model.AllowEmpty)
-						{
-							sb.AppendLine("default: { return OnEmpty.Invoke(context); }");
-						}
-						else
-						{
-							sb.AppendLine($"default: {{ throw new ArgumentNullException(\"{model.Name} is empty\"); }}");
-						}
+						var field = model.FieldNames[i];
+						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return On{field}.Invoke({UnsafeGet(i)}, context); }}");
 					}
+					if (model.AllowEmpty)
+					{
+						sb.AppendLine("if (OnEmpty != null) { return OnEmpty.Invoke(context); }");
+					}
+					sb.AppendLine($"return {ThrowHelper}.ThrowEmpty<TResult>(\"{model.FullName}\");");
 				}
 
 				#endregion
@@ -670,23 +646,17 @@ namespace DotPointers.OneOf.Generator
 					sb.AppendLine(")");
 					using (sb.EnterScope())
 					{
-						sb.AppendLine("switch(_kind)");
-						sb.AppendLine("{");
-						sb.Increase();
+						sb.AppendLine("var kind = _kind;");
 						for (int i = 0; i < count; i++)
 						{
-							sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ await On{model.FieldNames[i]}.Invoke({UnsafeGet(i)}); break; }}");
+							var field = model.FieldNames[i];
+							sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ await On{field}.Invoke({UnsafeGet(i)}); return; }}");
 						}
 						if (model.AllowEmpty)
 						{
-							sb.AppendLine("default: { await OnEmpty.Invoke(); break; }");
+							sb.AppendLine("if (OnEmpty != null) { await OnEmpty.Invoke(); return; }");
 						}
-						else
-						{
-							sb.AppendLine($"default: {{ throw new InvalidOperationException(\"{model.Name} is empty\"); }}");
-						}
-						sb.Decrease();
-						sb.AppendLine("};");
+						sb.AppendLine($"{ThrowHelper}.ThrowEmpty(\"{model.FullName}\");");
 					}
 
 					sb.AppendLine(Inline);
@@ -709,23 +679,17 @@ namespace DotPointers.OneOf.Generator
 					sb.AppendLine(")");
 					using (sb.EnterScope())
 					{
-						sb.AppendLine("return _kind switch");
-						sb.AppendLine("{");
-						sb.Increase();
+						sb.AppendLine("var kind = _kind;");
 						for (int i = 0; i < count; i++)
 						{
-							sb.AppendLine($"{enumName}.{model.FieldNames[i]} => await On{model.FieldNames[i]}.Invoke({UnsafeGet(i)}),");
+							var field = model.FieldNames[i];
+							sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return await On{field}.Invoke({UnsafeGet(i)}); }}");
 						}
 						if (model.AllowEmpty)
 						{
-							sb.AppendLine("_ => await OnEmpty.Invoke()");
+							sb.AppendLine("if (OnEmpty != null) { return await OnEmpty.Invoke(); }");
 						}
-						else
-						{
-							sb.AppendLine($"_ => throw new InvalidOperationException(\"{model.Name} is empty\")");
-						}
-						sb.Decrease();
-						sb.AppendLine("};");
+						sb.AppendLine($"return {ThrowHelper}.ThrowEmpty<TResult>(\"{model.FullName}\");");
 					}
 				}
 				#endregion
@@ -770,6 +734,7 @@ namespace DotPointers.OneOf.Generator
 						f.Parameters.Length == 1 &&
 						f.Parameters[0] == model.FullName))
 					{
+						sb.AppendLine(Inline);
 						sb.AppendLine($"public{read} bool Equals({model.FullName}{(isClass ? "?" : string.Empty)} other)");
 						using (sb.EnterScope())
 						{
@@ -783,7 +748,14 @@ namespace DotPointers.OneOf.Generator
 							sb.Increase();
 							for (int i = 0; i < count; i++)
 							{
-								sb.AppendLine($"{enumName}.{model.FieldNames[i]} => EqualityComparer<{model.TypeArgs[i].FullName}>.Default.Equals({UnsafeGet(i)}, other.{model.FieldNames[i]}Force),");
+								if (!model.TypeArgs[i].IsVoid)
+								{
+									sb.AppendLine($"{enumName}.{model.FieldNames[i]} => EqualityComparer<{model.TypeArgs[i].FullName}>.Default.Equals({UnsafeGet(i)}, other.{model.FieldNames[i]}Force),");
+								}
+								else
+								{
+									sb.AppendLine($"{enumName}.{model.FieldNames[i]} => true,");
+								}
 							}
 							sb.AppendLine("_ => true");
 							sb.Decrease();
@@ -796,6 +768,7 @@ namespace DotPointers.OneOf.Generator
 						f.Parameters.Length == 1 &&
 						(f.Parameters[0] == "object?" || f.Parameters[0] == "object")))
 					{
+						sb.AppendLine(Inline);
 						sb.AppendLine($"public{read} override bool Equals(object? obj) => obj is " + model.FullName + " other && Equals(other);");
 						sb.AppendLine();
 					}
@@ -804,31 +777,50 @@ namespace DotPointers.OneOf.Generator
 						f.Name == "GetHashCode()" &&
 						f.Parameters.Length == 0))
 					{
+						sb.AppendLine(Inline);
 						sb.AppendLine($"public{read} override int GetHashCode()");
 						using (sb.EnterScope())
 						{
-							sb.AppendLine("var hash = new HashCode();");
-							sb.AppendLine("hash.Add(_kind);");
-							sb.AppendLine("switch(_kind)");
-							using (sb.EnterScope())
+							sb.AppendLine("unchecked");
+							using (sb.EnterScope(false))
 							{
+								sb.AppendLine("var kind = _kind;");
+								sb.AppendLine("int hash = 17;");
+								sb.AppendLine("hash = hash * 23 + (int)kind;");
+								sb.AppendLine();
+
 								for (int i = 0; i < count; i++)
 								{
-									sb.AppendLine($"case {enumName}.{model.FieldNames[i]}: {{ hash.Add({UnsafeGet(i)}); break; }}");
+									var type = model.TypeArgs[i];
+									var field = model.FieldNames[i];
+
+									if (type.FullName == VoidType)
+									{
+										continue;
+									}
+
+									string ifStatement = i == 0 ? "if" : "else if";
+									sb.AppendLine($"{ifStatement} (kind == {enumName}.{field}) {{ hash = hash * 23 + ({UnsafeGet(i)}).GetHashCode(); }}");
 								}
+
+								sb.AppendLine();
+								sb.AppendLine("return hash;");
 							}
-							sb.AppendLine("return hash.ToHashCode();");
 						}
 					}
 
 					if (!isClass)
 					{
+						sb.AppendLine(Inline);
 						sb.AppendLine($"public static bool operator ==({model.FullName} left, {model.FullName} right) => left.Equals(right);");
+						sb.AppendLine(Inline);
 						sb.AppendLine($"public static bool operator !=({model.FullName} left, {model.FullName} right) => !left.Equals(right);");
 					}
 					else
 					{
+						sb.AppendLine(Inline);
 						sb.AppendLine($"public static bool operator ==({model.FullName}? left, {model.FullName}? right) => ReferenceEquals(left, right) ? true : (((object?)left) == null ? false : left.Equals(right));");
+						sb.AppendLine(Inline);
 						sb.AppendLine($"public static bool operator !=({model.FullName}? left, {model.FullName}? right) => ReferenceEquals(left, right) ? false :(((object?)left) == null ? true : !left.Equals(right));");
 					}
 					sb.AppendLine();
@@ -838,6 +830,7 @@ namespace DotPointers.OneOf.Generator
 
 				#region Deconstruct
 
+				sb.AppendLine(Inline);
 				sb.Append($"\t\tpublic{read} void Deconstruct(out {enumName} kind");
 				for (int i = 0; i < count; i++)
 				{
@@ -888,15 +881,7 @@ namespace DotPointers.OneOf.Generator
 				if (!model.IsRef)
 				{
 					sb.AppendLine(Inline);
-					sb.AppendLine($"public{read} IEnumerable<{model.FullName}> AsEnumerable()");
-					using (sb.EnterScope())
-					{
-						if (model.AllowEmpty)
-						{
-							sb.AppendLine("if (IsEmpty) { yield break; }");
-						}
-						sb.AppendLine("yield return this;");
-					}
+					sb.AppendLine($"public{read} DotPointers.OneOf.SingleEnumerable<{model.FullName}> AsEnumerable() => new(this);");
 				}
 
 				#endregion
@@ -1038,6 +1023,34 @@ namespace DotPointers.OneOf.Generator
 				}
 			}
 
+			if (!model.IsGeneric)
+			{
+				sb.AppendLine("public static partial class OneOfLinqExtensions");
+				using (sb.EnterScope(false))
+				{
+					for (int i = 0; i < count; i++)
+					{
+						var type = model.TypeArgs[i];
+						var field = model.FieldNames[i];
+
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public static IEnumerable<{model.FullName}> Where{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => x.Is{field});");
+						
+						sb.AppendLine();
+
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public static IEnumerable<{model.FullName}> Exclude{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => !x.Is{field});");
+						
+						sb.AppendLine();
+						
+						sb.AppendLine(Inline);
+						sb.AppendLine($"public static IEnumerable<{type.FullName}> Select{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => x.Is{field}).Select(static x => x.{field});");
+
+						sb.AppendLine();
+					}
+				}
+			}
+
 			if (hasNamespace)
 			{
 				sb.Decrease();
@@ -1054,13 +1067,13 @@ namespace DotPointers.OneOf.Generator
 
 				if (layout == OneOfLayoutKind.Boxing)
 				{
-					return $"({type.FullName})_value!";
+					return (type.IsReferenceType ? $"Unsafe.As<{type.FullName}>(_value!)" : $"({type.FullName})_value!");
 				}
 				else if (layout == OneOfLayoutKind.ExplicitUnion)
 				{
 					if (type.IsReferenceType)
 					{
-						return $"({type.FullName})_ref!";
+						return (type.IsReferenceType ? $"Unsafe.As<{type.FullName}>(_ref!)" : $"({type.FullName})_ref!");
 					}
 					else
 					{
@@ -1071,11 +1084,11 @@ namespace DotPointers.OneOf.Generator
 				{
 					return $"_v{i}!";
 				}
-				else if (layout == OneOfLayoutKind.Smart)
+				else if (layout == OneOfLayoutKind.Hybrid)
 				{
 					if (type.IsReferenceType)
 					{
-						return $"({type.FullName})_ref!";
+						return (type.IsReferenceType ? $"Unsafe.As<{type.FullName}>(_ref!)" : $"({type.FullName})_ref!");
 					}
 					else
 					{
@@ -1110,7 +1123,7 @@ namespace DotPointers.OneOf.Generator
 						return $"_data._v{i}";
 					}
 				}
-				else if (layout == OneOfLayoutKind.Smart)
+				else if (layout == OneOfLayoutKind.Hybrid)
 				{
 					if (type.IsReferenceType)
 					{
@@ -1579,9 +1592,9 @@ namespace DotPointers.OneOf.Generator
 
 				{{indent}}	[global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
 				{{indent}}	[MethodImpl(MethodImplOptions.NoInlining)]
-				{{indent}}	internal static T ThrowEmpty<T>()
+				{{indent}}	internal static T ThrowEmpty<T>(string typeName)
 				{{indent}}	{
-				{{indent}}		throw new InvalidOperationException($"{nameof(T)} is empty or not initialized");
+				{{indent}}		throw new InvalidOperationException($"{typeName} is empty or not initialized");
 				{{indent}}	}
 
 				{{indent}}	[global::System.Diagnostics.CodeAnalysis.DoesNotReturn]
@@ -1653,7 +1666,7 @@ namespace DotPointers.OneOf.Generator
 			int refTypeCount = model.TypeArgs.Count(t => t.IsReferenceType);
 			if (refTypeCount > 1)
 			{
-				return (OneOfLayoutKind.Smart, "Auto: Multiple reference types detected, using smart layout");
+				return (OneOfLayoutKind.Hybrid, "Auto: Multiple reference types detected, using hybrid layout");
 			}
 
 			return (OneOfLayoutKind.Composition, "Auto: Defaulting to composition");

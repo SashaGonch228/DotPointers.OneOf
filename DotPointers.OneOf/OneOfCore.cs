@@ -55,7 +55,7 @@ namespace DotPointers.OneOf
 	public enum OneOfLayoutKind : int
 	{
 		Auto = 0,
-		Smart = 1,
+		Hybrid = 1,
 		Composition = 2,
 		ExplicitUnion = 3,
 		Boxing = 4

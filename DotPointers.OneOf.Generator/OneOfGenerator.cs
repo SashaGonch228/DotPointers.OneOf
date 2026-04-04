@@ -170,7 +170,10 @@ namespace DotPointers.OneOf.Generator
 		EquatableArray<UserMethodModel> UserFuncs,
 		Serialization SerializeOption,
 		(KindPosition Pos, KindSize Size) Kind
-	);
+	)
+	{
+		public string Generics => IsGeneric ? ('<' + FullName.Split('<')[1]) : string.Empty;
+	}
 
 	public record TypeInfoModel(string FullName, string ShortName, bool IsReferenceType, bool IsRefStruct, bool HasReferences)
 	{
@@ -182,7 +185,7 @@ namespace DotPointers.OneOf.Generator
 	public enum OneOfLayoutKind : int
 	{
 		Auto = 0,
-		Smart = 1,
+		Hybrid = 1,
 		Composition = 2,
 		ExplicitUnion = 3,
 		Boxing = 4
