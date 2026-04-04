@@ -1046,7 +1046,10 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static IEnumerable<{type.FullName}> Select{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => x.Is{field}).Select(static x => x.{field});");
 
-						sb.AppendLine();
+						if (i < count - 1)
+						{
+							sb.AppendLine();
+						}
 					}
 				}
 			}
