@@ -1023,7 +1023,7 @@ namespace DotPointers.OneOf.Generator
 				}
 			}
 
-			if (!model.IsGeneric)
+			if (!model.IsGeneric && !model.IsRef)
 			{
 				sb.AppendLine("public static partial class OneOfLinqExtensions");
 				using (sb.EnterScope(false))
