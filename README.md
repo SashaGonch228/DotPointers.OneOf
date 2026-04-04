@@ -147,10 +147,10 @@ partial struct MyUnion {
 
 | Method                        | Mean         | Ratio | Code Size | Allocated | Object size |
 |------------------------------ |-------------:|------:|----------:|----------:|------------:|
-| Match_OneOf_Massive           | 1.371 ms     |  1.00 |     758 B |         - |        32 B |
-| Match_Explicit_Massive        | **1.302 ms** |  0.95 |     788 B |         - |    **20 B** |
-| Match_Composition_Massive     | 1.442 ms     |  1.05 |     791 B |         - |        32 B |
-| DirectSwitch_Explicit_Massive | **1.148 ms** |  0.84 | **237 B** |         - |    **20 B** |
+| mcintyre321 OneOf Match       | 1.361 ms     |  1.00 |     758 B |         - |        32 B |
+| Match_Explicit_Massive        | **1.152 ms** |  0.85 |     745 B |         - |    **20 B** |
+| Match_Composition_Massive     | 1.291 ms     |  0.95 |     748 B |         - |        32 B |
+| DirectSwitch_Explicit_Massive | **1.168 ms** |  0.86 | **224 B** |         - |    **20 B** |
 
 *Object size measured for a Union of 3 value types (GUID, long, int).*
 
