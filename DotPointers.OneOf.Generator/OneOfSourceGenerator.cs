@@ -371,6 +371,7 @@ namespace DotPointers.OneOf.Generator
 					sb.AppendLine($"public{read} {type.FullName} {field}");
 					using (sb.EnterScope())
 					{
+						sb.AppendLine(Inline);
 						sb.AppendLine("get");
 						using (sb.EnterScope(false))
 						{
