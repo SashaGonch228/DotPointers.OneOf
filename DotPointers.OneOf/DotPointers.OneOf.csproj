@@ -3,7 +3,7 @@
 		<TargetFramework>netstandard2.1</TargetFramework>
 		<LangVersion>11.0</LangVersion>
 		<Nullable>enable</Nullable>
-		<Version>1.0.2</Version>
+		<Version>1.0.3</Version>
 		<Authors>SashaGonch228</Authors>
 		<Company>SyntaxError Studio</Company>
 		<Description>High-performance, memory-efficient Source Generator for Discriminated Unions with Explicit, Composition, and Boxing layout support.</Description>
