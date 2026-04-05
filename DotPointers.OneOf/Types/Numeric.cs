@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 
-namespace DotPointers.OneOf
+namespace DotPointers.OneOf.Types
 {
-	[GenerateOneOf(new[] { "Number", "Text" }, false)]
+	[GenerateOneOf(["Number", "Text"], false)]
 	public readonly partial struct Numeric : IOneOf<double, string>
 	{
 		public bool IsParsed => IsNumber || (IsText && double.TryParse(Text, NumberStyles.Any, CultureInfo.InvariantCulture, out _));
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public double GetValue() => Match(
 			static n => n,
 			static t => double.TryParse(t, NumberStyles.Any, CultureInfo.InvariantCulture, out var result)
@@ -15,20 +17,23 @@ namespace DotPointers.OneOf
 				: throw new FormatException($"Cannot parse '{t}' as numeric (double).")
 		);
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public bool TryGetValue(out double value)
 		{
 			if (IsNumber) { value = Number; return true; }
 			return double.TryParse(Text, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator Numeric(int value) => new(value);
 	}
 
-	[GenerateOneOf(new[] { "Number", "Text" }, false)]
+	[GenerateOneOf(["Number", "Text"], false)]
 	public readonly partial struct IntNumeric : IOneOf<int, string>
 	{
 		public bool IsParsed => IsNumber || (IsText && int.TryParse(Text, NumberStyles.Any, CultureInfo.InvariantCulture, out _));
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public int GetValue() => Match(
 			static n => n,
 			static t => int.TryParse(t, NumberStyles.Any, CultureInfo.InvariantCulture, out var result)
@@ -36,6 +41,7 @@ namespace DotPointers.OneOf
 				: throw new FormatException($"Cannot parse '{t}' as numeric (double).")
 		);
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public bool TryGetValue(out int value)
 		{
 			if (IsNumber) { value = Number; return true; }

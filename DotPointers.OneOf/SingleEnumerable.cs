@@ -18,7 +18,10 @@ namespace DotPointers.OneOf
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public Enumerator GetEnumerator() => new(_value);
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
 		public struct Enumerator : IEnumerator<T>
@@ -47,7 +50,10 @@ namespace DotPointers.OneOf
 				return false;
 			}
 
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public void Reset() => _state = 0;
+
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
 			public readonly void Dispose() { }
 		}
 	}

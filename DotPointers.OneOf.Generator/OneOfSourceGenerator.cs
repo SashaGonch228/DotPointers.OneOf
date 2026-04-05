@@ -1668,7 +1668,7 @@ namespace DotPointers.OneOf.Generator
 			}
 
 			int refTypeCount = model.TypeArgs.Count(t => t.IsReferenceType);
-			if (refTypeCount > 1)
+			if (refTypeCount > 1 && canUseUnion)
 			{
 				return (OneOfLayoutKind.Hybrid, "Auto: Multiple reference types detected, using hybrid layout");
 			}
