@@ -151,26 +151,26 @@ Core Containers
 
 | Type             | States (Options)           | Purpose |
 | ---------------- | -------------------------- | ----- |
-| Option<T>        | Value, Empty               | A safe replacement for null. Forces explicit handling of missing values. |
-| Result<T>        | Value, Error               | Handles operations that can fail with an Exception. |
+| Option`<T>`      | Value, Empty               | A safe replacement for null. Forces explicit handling of missing values. |
+| Result`<T>`      | Value, Error               | Handles operations that can fail with an Exception. |
 | Validation<T, E> | Value, Failures            | Accumulates validation errors (array of E[]) instead of short-circuiting on the first failure. |
-| Response<T>      | Content, NotFound, Failure | Perfect for API/Service layers: distinguishes between "No Result Found" and "System Error". |
+| Response`<T>`    | Content, NotFound, Failure | Perfect for API/Service layers: distinguishes between "No Result Found" and "System Error". |
 
 Collections
 
-| Type         | States (Options)       | Purpose |
-| ------------ | ---------------------- | ----- |
-| OneOrMany<T> | Single, Multiple       | Guarantees at least one element. Optimized to avoid allocations for single-item scenarios. |
-| Many<T>      | Single, Multiple, None | A versatile wrapper for 0, 1, or N elements. Implements IEnumerable<T>. |
-| Attempt<T>   | Value, Task            | Lazy data retrieval: either the value is already present, or it must be awaited via Task<T>. |
+| Type           | States (Options)       | Purpose |
+| -------------- | ---------------------- | ----- |
+| OneOrMany`<T>` | Single, Multiple       | Guarantees at least one element. Optimized to avoid allocations for single-item scenarios. |
+| Many`<T>`      | Single, Multiple, None | A versatile wrapper for 0, 1, or N elements. Implements IEnumerable<T>. |
+| Attempt`<T>`   | Value, Task            | Lazy data retrieval: either the value is already present, or it must be awaited via Task<T>. |
 
 Domain & Logic Types
 
-| Type     | States (Options)           | Purpose |
-| -------- | -------------------------- | ----- |
-| Numeric  | Number, Text               | Handles numbers that might arrive as strings (e.g., from web forms or CSV files). |
-| Range<T> | Single, Between, Any, None | Describes ranges: a specific value, an interval, "Any" (wildcard), or "None". |
-| Tristate | True, False, Unknown       | Extended logic (SQL-style). Allows distinguishing "No" from "Indeterminate". |
+| Type       | States (Options)           | Purpose |
+| ---------- | -------------------------- | ----- |
+| Numeric    | Number, Text               | Handles numbers that might arrive as strings (e.g., from web forms or CSV files). |
+| Range`<T>` | Single, Between, Any, None | Describes ranges: a specific value, an interval, "Any" (wildcard), or "None". |
+| Tristate   | True, False, Unknown       | Extended logic (SQL-style). Allows distinguishing "No" from "Indeterminate". |
 
 ### 💥 Benchmark
 
