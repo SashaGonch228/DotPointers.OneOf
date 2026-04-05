@@ -126,7 +126,8 @@ namespace DotPointers.OneOf.Generator
 				ShortName: t.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
 				IsReferenceType: t.IsReferenceType,
 				IsRefStruct: t.IsRefLikeType,
-				HasReferences: !t.IsUnmanagedType
+				HasReferences: !t.IsUnmanagedType,
+				IsInterface: t.TypeKind == TypeKind.Interface
 			)).ToImmutableArray();
 
 			var userMethods = symbol.GetMembers()
@@ -175,7 +176,7 @@ namespace DotPointers.OneOf.Generator
 		public string Generics => IsGeneric ? ('<' + FullName.Split('<')[1]) : string.Empty;
 	}
 
-	public record TypeInfoModel(string FullName, string ShortName, bool IsReferenceType, bool IsRefStruct, bool HasReferences)
+	public record TypeInfoModel(string FullName, string ShortName, bool IsReferenceType, bool IsRefStruct, bool HasReferences, bool IsInterface)
 	{
 		public bool IsVoid => FullName == "global::DotPointers.OneOf.Void";
 	}

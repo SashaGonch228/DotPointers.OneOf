@@ -30,8 +30,6 @@ namespace DotPointers.OneOf.Types
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static Many<T> Empty() => new(default(Void));
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static implicit operator Many<T>(T value) => new(value);
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator Many<T>(T[] values) => new(values);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator Many<T>(List<T> values) => new(values);
@@ -57,11 +55,6 @@ namespace DotPointers.OneOf.Types
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static implicit operator OneOrMany<T>(T value) => new(value);
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static implicit operator OneOrMany<T>(T[] values) => new(values);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public T[] ToArray() => IsSingle ? [SingleForce] : MultipleForce.ToArray();

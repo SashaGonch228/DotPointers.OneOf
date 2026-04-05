@@ -831,19 +831,22 @@ namespace DotPointers.OneOf.Generator
 
 				#region Deconstruct
 
-				sb.AppendLine(Inline);
-				sb.Append($"\t\tpublic{read} void Deconstruct(out {enumName} kind");
-				for (int i = 0; i < count; i++)
+				if (!model.TypeArgs.All(x => x.IsVoid))
 				{
-					sb.Append($", out {model.TypeArgs[i].FullName}? {model.FieldNames[i].ToLower()}");
-				}
-				sb.AppendLine(")");
-				using (sb.EnterScope())
-				{
-					sb.AppendLine("kind = _kind;");
+					sb.AppendLine(Inline);
+					sb.Append($"\t\tpublic{read} void Deconstruct(out {enumName} kind");
 					for (int i = 0; i < count; i++)
 					{
-						sb.AppendLine($"{model.FieldNames[i].ToLower()} = Is{model.FieldNames[i]} ? {UnsafeGet(i)} : default;");
+						sb.Append($", out {model.TypeArgs[i].FullName}? {model.FieldNames[i].ToLower()}");
+					}
+					sb.AppendLine(")");
+					using (sb.EnterScope())
+					{
+						sb.AppendLine("kind = _kind;");
+						for (int i = 0; i < count; i++)
+						{
+							sb.AppendLine($"{model.FieldNames[i].ToLower()} = Is{model.FieldNames[i]} ? {UnsafeGet(i)} : default;");
+						}
 					}
 				}
 
@@ -857,6 +860,7 @@ namespace DotPointers.OneOf.Generator
 					var field = model.FieldNames[i];
 					if (model.TypeArgs.Count(x => x.FullName == type.FullName) >= 2) { continue; }
 					if (type.FullName == "object") { continue; }
+					if (type.IsInterface) { continue; }
 					sb.AppendLine(Inline);
 					sb.AppendIntend();
 					sb.Append($"public static implicit operator {model.FullName}({type.FullName} value) => ");
