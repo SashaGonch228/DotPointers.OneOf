@@ -911,7 +911,7 @@ namespace DotPointers.OneOf.Generator
 				#region Chain
 
 				sb.AppendLine(Inline);
-				sb.AppendLine("public ChainContext Chain() => new(this);");
+				sb.AppendLine($"public{read} ChainContext Chain() => new(this);");
 
 				sb.AppendLine("public readonly ref struct ChainContext");
 				using (sb.EnterScope())
@@ -936,7 +936,7 @@ namespace DotPointers.OneOf.Generator
 						var field = model.FieldNames[i];
 
 						sb.AppendLine(Inline);
-						sb.AppendLine($"public ChainContext If{field}(Predicate<{type.FullName}> predicate)");
+						sb.AppendLine($"public{read} ChainContext If{field}(Predicate<{type.FullName}> predicate)");
 						using (sb.EnterScope())
 						{
 							sb.AppendLine("if (_consumed) { return this; }");
