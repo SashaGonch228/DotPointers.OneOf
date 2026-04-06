@@ -163,6 +163,8 @@ namespace DotPointers.OneOf.Generator
 
 				using (sb.EnterScope())
 				{
+					sb.AppendLine("Unsafe.SkipInit(out this);");
+
 					sb.AppendLine("this._kind = kind;");
 					if (layout == OneOfLayoutKind.Composition)
 					{
@@ -214,6 +216,7 @@ namespace DotPointers.OneOf.Generator
 					sb.AppendLine($"public {model.Name}()");
 					using (sb.EnterScope())
 					{
+						sb.AppendLine("Unsafe.SkipInit(out this);");
 						sb.AppendLine($"{ThrowHelper}.ThrowEmpty(nameof({model.FullName}));");
 					}
 				}
@@ -235,6 +238,8 @@ namespace DotPointers.OneOf.Generator
 
 						using (sb.EnterScope())
 						{
+							sb.AppendLine("Unsafe.SkipInit(out this);");
+
 							GenerateAssignment(type, i, sb);
 							sb.AppendLine($"this._kind = {enumName}.{model.FieldNames[i]};");
 						}
@@ -247,6 +252,8 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine($"public {model.Name}({type.FullName} value, {enumName} kind)");
 						using (sb.EnterScope())
 						{
+							sb.AppendLine("Unsafe.SkipInit(out this);");
+
 							sb.AppendLine($"if (!({validKinds}))");
 							using (sb.EnterScope())
 							{
@@ -420,34 +427,6 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine("return false;");
 					}
 					sb.AppendLine();
-				}
-
-				sb.AppendLine(Inline);
-				sb.AppendLine($"public{read} bool TryGet<TGet>([NotNullWhen(true)] out TGet? value)");
-				using (sb.EnterScope())
-				{
-					var grouped = model.TypeArgs.GroupBy(t => t.FullName);
-					foreach (var group in grouped)
-					{
-						sb.AppendLine($"if (typeof(TGet) == typeof({group.Key}))");
-						using (sb.EnterScope())
-						{
-							foreach (var t in group)
-							{
-								int index = model.TypeArgs.IndexOf(t);
-								sb.AppendLine($"if (_kind == {enumName}.{model.FieldNames[index]})");
-								using (sb.EnterScope(false))
-								{
-									sb.AppendLine($"{model.TypeArgs[index].FullName} temp = {UnsafeGet(index)};");
-									sb.AppendLine($"value = Unsafe.As<{group.Key}, TGet>(ref temp)!;");
-									sb.AppendLine("return true;");
-								}
-							}
-						}
-					}
-
-					sb.AppendLine("value = default;");
-					sb.AppendLine("return false;");
 				}
 
 				#endregion
@@ -695,7 +674,7 @@ namespace DotPointers.OneOf.Generator
 				}
 				#endregion
 
-				#region Map
+				#region Map / Bind
 
 				for (int i = 0; i < count; i++)
 				{
