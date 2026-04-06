@@ -120,6 +120,7 @@ namespace DotPointers.OneOf.Generator
 				(KindPosition)(attributeData.ConstructorArguments.ElementAtOrDefault(3).Value ?? 0),
 				(KindSize)(attributeData.ConstructorArguments.ElementAtOrDefault(4).Value ?? 0)
 			);
+			var generateMetadata = (bool)(attributeData.ConstructorArguments.ElementAtOrDefault(5).Value ?? true);
 
 			var types = typeArguments.Select(t => new TypeInfoModel(
 				FullName: t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -152,7 +153,8 @@ namespace DotPointers.OneOf.Generator
 				FieldNames: fields.AsEquatableArray(),
 				UserFuncs: userMethods.AsEquatableArray(),
 				SerializeOption: serialize,
-				Kind: kind
+				Kind: kind,
+				GenerateMetadata: generateMetadata
 			);
 		}
 	}
@@ -170,7 +172,8 @@ namespace DotPointers.OneOf.Generator
 		EquatableArray<string> FieldNames,
 		EquatableArray<UserMethodModel> UserFuncs,
 		Serialization SerializeOption,
-		(KindPosition Pos, KindSize Size) Kind
+		(KindPosition Pos, KindSize Size) Kind,
+		bool GenerateMetadata
 	)
 	{
 		public string Generics => IsGeneric ? ('<' + FullName.Split('<')[1]) : string.Empty;

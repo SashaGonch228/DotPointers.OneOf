@@ -998,6 +998,60 @@ namespace DotPointers.OneOf.Generator
 				}
 				#endregion
 
+				#region Metadata
+
+				if (model.GenerateMetadata)
+				{
+					sb.AppendLine("public static class Metadata");
+					using (sb.EnterScope())
+					{
+						sb.AppendLine($"public const int Count = {count};");
+						sb.AppendLine($"public const DotPointers.OneOf.OneOfLayoutKind Layout = DotPointers.OneOf.OneOfLayoutKind.{layout};");
+
+						sb.AppendLine();
+
+						sb.AppendLine($"public static bool IsFixedSize => !RuntimeHelpers.IsReferenceOrContainsReferences<{model.FullName}>();");
+						sb.AppendLine($"public static int Size => Unsafe.SizeOf<{model.FullName}>();");
+
+						sb.AppendLine();
+
+						sb.AppendLine(Inline);
+						sb.AppendLine("public static Type GetTypeAt(int index) => index switch");
+						using (sb.EnterScope(true, ";"))
+						{
+							for (int i = 0; i < count; i++)
+							{
+								sb.AppendLine($"{i} => typeof({model.TypeArgs[i].FullName}),");
+							}
+							sb.AppendLine("_ => throw new ArgumentOutOfRangeException(nameof(index))");
+						}
+
+						sb.AppendLine(Inline);
+						sb.AppendLine("public static string GetFieldAt(int index) => index switch");
+						using (sb.EnterScope(true, ";"))
+						{
+							for (int i = 0; i < count; i++)
+							{
+								sb.AppendLine($"{i} => \"{model.FieldNames[i]}\",");
+							}
+							sb.AppendLine("_ => throw new ArgumentOutOfRangeException(nameof(index))");
+						}
+
+						sb.AppendLine(Inline);
+						sb.AppendLine("public static bool IsReferenceAt(int index) => index switch");
+						using (sb.EnterScope(true, ";"))
+						{
+							for (int i = 0; i < count; i++)
+							{
+								sb.AppendLine($"{i} => RuntimeHelpers.IsReferenceOrContainsReferences<{model.TypeArgs[i].FullName}>(),");
+							}
+							sb.AppendLine("_ => throw new ArgumentOutOfRangeException(nameof(index))");
+						}
+					}
+				}
+
+				#endregion
+
 				sb.AppendLine($"public enum {enumName} : {model.Kind.Size.ToString().ToLower()}");
 				using (sb.EnterScope(false))
 				{

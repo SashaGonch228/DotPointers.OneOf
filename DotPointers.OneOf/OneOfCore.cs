@@ -8,7 +8,7 @@ namespace DotPointers.OneOf
 		public GenerateOneOfAttribute() { }
 #pragma warning disable RCS1163
 #pragma warning disable IDE0060
-		public GenerateOneOfAttribute(string[]? FieldNames = null, bool AllowEmpty = false, OneOfLayoutKind Layout = OneOfLayoutKind.Auto, KindPosition KindPos = KindPosition.Before, KindSize KindSize = KindSize.Int) { }
+		public GenerateOneOfAttribute(string[]? FieldNames = null, bool AllowEmpty = false, OneOfLayoutKind Layout = OneOfLayoutKind.Auto, KindPosition KindPos = KindPosition.Before, KindSize KindSize = KindSize.Int, bool GenerateInfo = true) { }
 #pragma warning restore IDE0060
 #pragma warning restore RCS1163
 	}
@@ -23,12 +23,6 @@ namespace DotPointers.OneOf
 	public sealed class GenerateNewtonsoftJsonSupportAttribute : Attribute
 	{
 		public GenerateNewtonsoftJsonSupportAttribute() { }
-	}
-
-	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
-	public sealed class GenerateEfCoreSupportAttribute : Attribute
-	{
-		public GenerateEfCoreSupportAttribute() { }
 	}
 
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]

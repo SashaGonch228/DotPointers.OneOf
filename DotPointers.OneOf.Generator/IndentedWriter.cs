@@ -19,7 +19,7 @@ namespace DotPointers.OneOf.Generator
 			}
 		}
 
-		public IndentScope EnterScope(bool newLine = true) => new(this, newLine);
+		public IndentScope EnterScope(bool newLine = true, string endLine = "") => new(this, newLine, endLine);
 
 		public void AppendLine(string line)
 		{
@@ -55,17 +55,22 @@ namespace DotPointers.OneOf.Generator
 		{
 			private readonly IndentedWriter _writer;
 			private readonly bool _newLine;
-			public IndentScope(IndentedWriter writer, bool newLine)
+			private readonly string _endLine;
+			public IndentScope(IndentedWriter writer, bool newLine, string endLine)
 			{
 				_writer = writer;
 				_newLine = newLine;
+				_endLine = endLine;
 				_writer.AppendLine("{");
 				_writer.Increase();
 			}
 			public void Dispose()
 			{
 				_writer.Decrease();
-				_writer.AppendLine("}");
+				_writer.AppendIntend();
+				_writer.Append("}");
+				_writer.Append(_endLine);
+				_writer.AppendLine();
 				if (_newLine)
 				{
 					_writer.AppendLine();
