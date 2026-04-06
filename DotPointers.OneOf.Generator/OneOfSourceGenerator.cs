@@ -58,23 +58,6 @@ namespace DotPointers.OneOf.Generator
 			}
 
 
-			#region SubStruct
-			if (layout == OneOfLayoutKind.ExplicitUnion && hasVal)
-			{
-				sb.AppendLine("[StructLayout(LayoutKind.Explicit)]");
-				sb.AppendLine($"internal struct {unionName}");
-				using (sb.EnterScope())
-				{
-					for (int i = 0; i < count; i++)
-					{
-						if (!model.TypeArgs[i].IsReferenceType && !model.TypeArgs[i].IsVoid)
-						{
-							sb.AppendLine($"[FieldOffset(0)] public {model.TypeArgs[i].FullName} _v{i};");
-						}
-					}
-				}
-			}
-			#endregion
 
 			#region Definition
 
@@ -87,8 +70,27 @@ namespace DotPointers.OneOf.Generator
 				sb.Append($" : IEquatable<{model.FullName}>");
 			}
 			sb.AppendLine();
+
 			using (sb.EnterScope())
 			{
+				#region SubStruct
+				if (layout == OneOfLayoutKind.ExplicitUnion && hasVal)
+				{
+					sb.AppendLine("[StructLayout(LayoutKind.Explicit)]");
+					sb.AppendLine($"internal struct {unionName}");
+					using (sb.EnterScope())
+					{
+						for (int i = 0; i < count; i++)
+						{
+							if (!model.TypeArgs[i].IsReferenceType && !model.TypeArgs[i].IsVoid)
+							{
+								sb.AppendLine($"[FieldOffset(0)] public {model.TypeArgs[i].FullName} _v{i};");
+							}
+						}
+					}
+				}
+				#endregion
+
 				if (model.Kind.Pos == KindPosition.Before)
 				{
 					sb.AppendLine($"private readonly {enumName} _kind;");
@@ -1019,14 +1021,14 @@ namespace DotPointers.OneOf.Generator
 
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static IEnumerable<{model.FullName}> Where{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => x.Is{field});");
-						
+
 						sb.AppendLine();
 
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static IEnumerable<{model.FullName}> Exclude{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => !x.Is{field});");
-						
+
 						sb.AppendLine();
-						
+
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static IEnumerable<{type.FullName}> Select{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => x.Is{field}).Select(static x => x.{field});");
 

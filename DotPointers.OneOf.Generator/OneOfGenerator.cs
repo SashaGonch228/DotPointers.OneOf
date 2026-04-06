@@ -126,7 +126,7 @@ namespace DotPointers.OneOf.Generator
 				ShortName: t.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
 				IsReferenceType: t.IsReferenceType,
 				IsRefStruct: t.IsRefLikeType,
-				HasReferences: !t.IsUnmanagedType,
+				HasReferences: !t.IsValueType || !t.IsUnmanagedType,
 				IsInterface: t.TypeKind == TypeKind.Interface
 			)).ToImmutableArray();
 
