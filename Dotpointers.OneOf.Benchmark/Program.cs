@@ -1,10 +1,11 @@
 ﻿using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using OneOf;
 using System;
-using static Benchmarks.HeavyIdExplicit;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using BenchmarkDotNet.Order;
 
 namespace Benchmarks;
 
@@ -14,27 +15,37 @@ public static class Program
 	{
 		var config = DefaultConfig.Instance.WithOptions(ConfigOptions.DisableOptimizationsValidator);
 		BenchmarkRunner.Run<OneOfProductionBenchmark>(config);
-		//BenchmarkRunner.Run<HeavyUnionAccessBenchmark>(config);
-		//BenchmarkRunner.Run<HeavyUnionBenchmark>(config); 
 	}
 }
 
 [HideColumns("Error", "StdDev", "Median", "RatioSD")]
 [MemoryDiagnoser]
+[Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [DisassemblyDiagnoser(maxDepth: 3)]
 public class OneOfProductionBenchmark
 {
 	private const int Count = 100_000;
-	private HeavyIdExplicit[] _explicitArray;
-	private HeavyIdComposition[] _compositionArray;
-	private OneOf<Guid, long, int>[] _oneOfArray;
+
+	private HeavyIdExplicit[] _explicitArray = null!;
+	private HeavyIdComposition[] _compositionArray = null!;
+	private HeavyIdBoxing[] _boxingArray = null!;
+	private OneOf<Guid, long, int>[] _oneOfArray = null!;
+
+	private Guid _testGuid = Guid.NewGuid();
+	private long _testLong = 42L;
+	private int _testInt = 123;
 
 	[GlobalSetup]
 	public void Setup()
 	{
 		_explicitArray = new HeavyIdExplicit[Count];
 		_compositionArray = new HeavyIdComposition[Count];
+		_boxingArray = new HeavyIdBoxing[Count];
 		_oneOfArray = new OneOf<Guid, long, int>[Count];
+
+		Console.WriteLine($"[Metadata] Size of Explicit: {Unsafe.SizeOf<HeavyIdExplicit>()} bytes");
+		Console.WriteLine($"[Metadata] Size of Composition: {Unsafe.SizeOf<HeavyIdComposition>()} bytes");
+		Console.WriteLine($"[Metadata] Size of OneOf: {Unsafe.SizeOf<OneOf<Guid, long, int>>()} bytes");
 
 		var rnd = new Random(42);
 		for (int i = 0; i < Count; i++)
@@ -42,92 +53,124 @@ public class OneOfProductionBenchmark
 			int type = rnd.Next(0, 3);
 			if (type == 0)
 			{
-				var g = Guid.NewGuid();
-				_explicitArray[i] = g;
-				_compositionArray[i] = g;
-				_oneOfArray[i] = g;
+				_explicitArray[i] = _testGuid;
+				_compositionArray[i] = _testGuid;
+				_boxingArray[i] = _testGuid;
+				_oneOfArray[i] = _testGuid;
 			}
 			else if (type == 1)
 			{
-				long l = rnd.NextInt64();
-				_explicitArray[i] = l;
-				_compositionArray[i] = l;
-				_oneOfArray[i] = l;
+				_explicitArray[i] = _testLong;
+				_compositionArray[i] = _testLong;
+				_boxingArray[i] = _testLong;
+				_oneOfArray[i] = _testLong;
 			}
 			else
 			{
-				int val = rnd.Next();
-				_explicitArray[i] = val;
-				_compositionArray[i] = val;
-				_oneOfArray[i] = val;
+				_explicitArray[i] = _testInt;
+				_compositionArray[i] = _testInt;
+				_boxingArray[i] = _testInt;
+				_oneOfArray[i] = _testInt;
 			}
 		}
 	}
 
-	[Benchmark(Baseline = true)]
+	[Benchmark(Baseline = true)] [BenchmarkCategory("Access")]
 	public long Match_OneOf_Massive()
 	{
 		long sum = 0;
 		for (int i = 0; i < _oneOfArray.Length; i++)
 		{
 			OneOf<Guid, long, int> item = _oneOfArray[i];
-			sum += item.Match(
-				g => g.GetHashCode(),
-				l => (int)(l % 1000),
-				i => i
-			);
+			sum += item.Match(g => g.GetHashCode(), l => (int)(l % 1000), i => i);
 		}
+
 		return sum;
 	}
 
 	[Benchmark]
+	[BenchmarkCategory("Access")]
 	public long Match_Explicit_Massive()
 	{
 		long sum = 0;
 		for (int i = 0; i < _explicitArray.Length; i++)
 		{
 			HeavyIdExplicit item = _explicitArray[i];
-			sum += item.Match(
-				g => g.GetHashCode(),
-				l => (int)(l % 1000),
-				i => i
-			);
+			sum += item.Match(g => g.GetHashCode(), l => (int)(l % 1000), i => i);
 		}
+
 		return sum;
 	}
 
 	[Benchmark]
+	[BenchmarkCategory("Access")]
 	public long Match_Composition_Massive()
 	{
 		long sum = 0;
 		for (int i = 0; i < _compositionArray.Length; i++)
 		{
 			HeavyIdComposition item = _compositionArray[i];
-			sum += item.Match(
-				g => g.GetHashCode(),
-				l => (int)(l % 1000),
-				i => i
-			);
+			sum += item.Match(g => g.GetHashCode(), l => (int)(l % 1000), i => i);
 		}
+
 		return sum;
 	}
 
 	[Benchmark]
+	[BenchmarkCategory("Access")]
+	public long Match_Boxing_Massive()
+	{
+		long sum = 0;
+		for (int i = 0; i < _boxingArray.Length; i++)
+		{
+			HeavyIdBoxing item = _boxingArray[i];
+			sum += item.Match(g => g.GetHashCode(), l => (int)(l % 1000), i => i);
+		}
+
+		return sum;
+	}
+
+	[Benchmark]
+	[BenchmarkCategory("Access")]
 	public long DirectSwitch_Explicit_Massive()
 	{
 		long sum = 0;
 		for (int i = 0; i < _explicitArray.Length; i++)
 		{
 			HeavyIdExplicit item = _explicitArray[i];
-			sum += item.Kind switch
+			sum += item.Index switch
 			{
-				OneOfHeavyIdExplicit.First => item.First.GetHashCode(),
-				OneOfHeavyIdExplicit.Second => (int)(item.Second % 1000),
-				OneOfHeavyIdExplicit.Third => item.Third,
+				0 => item.First.GetHashCode(),
+				1 => (int)(item.Second % 1000),
+				2 => item.Third,
 				_ => 0
 			};
 		}
 		return sum;
+	}
+
+	[Benchmark]
+	[BenchmarkCategory("Creation")]
+	public void Create_OneOf()
+	{
+		var arr = new OneOf<Guid, long, int>[100];
+		for (int i = 0; i < 100; i++) arr[i] = _testGuid;
+	}
+
+	[Benchmark]
+	[BenchmarkCategory("Creation")]
+	public void Create_Explicit()
+	{
+		var arr = new HeavyIdExplicit[100];
+		for (int i = 0; i < 100; i++) arr[i] = _testGuid;
+	}
+
+	[Benchmark]
+	[BenchmarkCategory("Creation")]
+	public void Create_Boxing()
+	{
+		var arr = new HeavyIdBoxing[100];
+		for (int i = 0; i < 100; i++) arr[i] = _testGuid;
 	}
 }
 
