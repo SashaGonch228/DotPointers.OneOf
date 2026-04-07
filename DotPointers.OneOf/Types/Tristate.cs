@@ -8,7 +8,7 @@ namespace DotPointers.OneOf.Types
 	[GenerateOneOf(["True", "False", "Unknown"])]
 	public readonly partial struct Tristate : IOneOf<Void, Void, Void>
 	{
-		public bool? Bool => Match(_ => (bool?)true, _ => (bool?)false, _ => (bool?)null);
+		public bool? Bool => Match(() => (bool?)true, () => (bool?)false, () => (bool?)null);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator Tristate(bool value) => value ? TrueValue() : FalseValue();

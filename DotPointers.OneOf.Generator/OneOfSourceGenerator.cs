@@ -505,7 +505,8 @@ namespace DotPointers.OneOf.Generator
 				{
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
-					sb.Append($"Action<{type.FullName}> On{field}");
+					string gen = type.IsVoid ? string.Empty : $"<{type.FullName}>";
+					sb.Append($"Action{gen} On{field}");
 					if (i < count - 1)
 					{
 						sb.Append(", ");
@@ -523,7 +524,7 @@ namespace DotPointers.OneOf.Generator
 					for (int i = 0; i < count; i++)
 					{
 						var field = model.FieldNames[i];
-						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ On{field}.Invoke({UnsafeGet(i)}); return; }}");
+						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ On{field}.Invoke({(!model.TypeArgs[i].IsVoid ? UnsafeGet(i) : string.Empty)}); return; }}");
 					}
 					if (model.AllowEmpty)
 					{
@@ -546,7 +547,8 @@ namespace DotPointers.OneOf.Generator
 				{
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
-					sb.Append($"Func<{type.FullName}, TResult> On{field}");
+					string gen = type.IsVoid ? string.Empty : $"{type.FullName}, ";
+					sb.Append($"Func<{gen}TResult> On{field}");
 					if (i < count - 1)
 					{
 						sb.Append(", ");
@@ -564,7 +566,7 @@ namespace DotPointers.OneOf.Generator
 					for (int i = 0; i < count; i++)
 					{
 						var field = model.FieldNames[i];
-						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return On{field}.Invoke({UnsafeGet(i)}); }}");
+						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return On{field}.Invoke({(!model.TypeArgs[i].IsVoid ? UnsafeGet(i) : string.Empty)}); }}");
 					}
 					if (model.AllowEmpty)
 					{
@@ -592,7 +594,8 @@ namespace DotPointers.OneOf.Generator
 				{
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
-					sb.Append($"Action<{type.FullName}, TContext> On{field}");
+					string gen = type.IsVoid ? string.Empty : $"{type.FullName}, ";
+					sb.Append($"Action<{gen}TContext> On{field}");
 					if (i < count - 1)
 					{
 						sb.Append(", ");
@@ -611,7 +614,7 @@ namespace DotPointers.OneOf.Generator
 					for (int i = 0; i < count; i++)
 					{
 						var field = model.FieldNames[i];
-						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ On{field}.Invoke({UnsafeGet(i)}, context); return; }}");
+						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ On{field}.Invoke({(!model.TypeArgs[i].IsVoid ? $"{UnsafeGet(i)}, " : string.Empty)}context); return; }}");
 					}
 					if (model.AllowEmpty)
 					{
@@ -635,7 +638,8 @@ namespace DotPointers.OneOf.Generator
 				{
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
-					sb.Append($"Func<{type.FullName}, TContext, TResult> On{field}");
+					string gen = type.IsVoid ? string.Empty : $"{type.FullName}, ";
+					sb.Append($"Func<{gen}TContext, TResult> On{field}");
 					if (i < count - 1)
 					{
 						sb.Append(", ");
@@ -654,7 +658,7 @@ namespace DotPointers.OneOf.Generator
 					for (int i = 0; i < count; i++)
 					{
 						var field = model.FieldNames[i];
-						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return On{field}.Invoke({UnsafeGet(i)}, context); }}");
+						sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return On{field}.Invoke({(!model.TypeArgs[i].IsVoid ? $"{UnsafeGet(i)}, " : string.Empty)}context); }}");
 					}
 					if (model.AllowEmpty)
 					{
@@ -684,7 +688,8 @@ namespace DotPointers.OneOf.Generator
 					{
 						var type = model.TypeArgs[i];
 						var field = model.FieldNames[i];
-						sb.Append($"Func<{type.FullName}, ValueTask> On{field}");
+						string gen = type.IsVoid ? string.Empty : $"{type.FullName}, ";
+						sb.Append($"Func<{gen}ValueTask> On{field}");
 						if (i < count - 1 || model.AllowEmpty)
 						{
 							sb.Append(", ");
@@ -701,7 +706,7 @@ namespace DotPointers.OneOf.Generator
 						for (int i = 0; i < count; i++)
 						{
 							var field = model.FieldNames[i];
-							sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ await On{field}.Invoke({UnsafeGet(i)}); return; }}");
+							sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ await On{field}.Invoke({(!model.TypeArgs[i].IsVoid ? UnsafeGet(i) : string.Empty)}); return; }}");
 						}
 						if (model.AllowEmpty)
 						{
@@ -726,7 +731,8 @@ namespace DotPointers.OneOf.Generator
 					{
 						var type = model.TypeArgs[i];
 						var field = model.FieldNames[i];
-						sb.Append($"Func<{type.FullName}, ValueTask<TResult>> On{field}");
+						string gen = type.IsVoid ? string.Empty : $"{type.FullName}, ";
+						sb.Append($"Func<{gen}ValueTask<TResult>> On{field}");
 						if (i < count - 1 || model.AllowEmpty)
 						{
 							sb.Append(", ");
@@ -743,7 +749,7 @@ namespace DotPointers.OneOf.Generator
 						for (int i = 0; i < count; i++)
 						{
 							var field = model.FieldNames[i];
-							sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return await On{field}.Invoke({UnsafeGet(i)}); }}");
+							sb.AppendLine($"if (kind == {enumName}.{field} && On{field} != null) {{ return await On{field}.Invoke({(!model.TypeArgs[i].IsVoid ? UnsafeGet(i) : string.Empty)}); }}");
 						}
 						if (model.AllowEmpty)
 						{

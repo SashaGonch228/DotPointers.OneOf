@@ -19,7 +19,7 @@ public static class BasicUsage
 		action.Switch(
 			move => Console.WriteLine($"Moving to {move.X}, {move.Y}"),
 			attack => Console.WriteLine($"Attacking {attack.Target} for {attack.Damage} HP"),
-			idle => Console.WriteLine("Doing nothing...")
+			() => Console.WriteLine("Doing nothing...")
 		);
 
 		// Direct property access

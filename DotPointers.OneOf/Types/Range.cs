@@ -10,8 +10,8 @@ namespace DotPointers.OneOf.Types
 		public bool InRange(int value) => Match(
 			s => value == s,
 			b => value >= b.Item1 && value <= b.Item2,
-			static _ => true,
-			static _ => false
+			() => true,
+			() => false
 		);
 	}
 
@@ -22,8 +22,8 @@ namespace DotPointers.OneOf.Types
 		public bool InRange(T value) => Match(
 			s => value.CompareTo(s) == 0,
 			b => value.CompareTo(b.Min) >= 0 && value.CompareTo(b.Max) <= 0,
-			static _ => true,
-			static _ => false
+			() => true,
+			() => false
 		);
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
