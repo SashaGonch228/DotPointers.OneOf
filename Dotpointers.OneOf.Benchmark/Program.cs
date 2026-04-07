@@ -1,11 +1,10 @@
 ﻿using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
+using BenchmarkDotNet.Order;
 using OneOf;
 using System;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using BenchmarkDotNet.Order;
 
 namespace Benchmarks;
 
@@ -25,15 +24,16 @@ public static class Program
 public class OneOfProductionBenchmark
 {
 	private const int Count = 100_000;
+	private const int CreateBatchSize = 100;
 
 	private HeavyIdExplicit[] _explicitArray = null!;
 	private HeavyIdComposition[] _compositionArray = null!;
 	private HeavyIdBoxing[] _boxingArray = null!;
 	private OneOf<Guid, long, int>[] _oneOfArray = null!;
 
-	private Guid _testGuid = Guid.NewGuid();
-	private long _testLong = 42L;
-	private int _testInt = 123;
+	private readonly Guid _testGuid = Guid.NewGuid();
+	private readonly long _testLong = 42L;
+	private readonly int _testInt = 123;
 
 	[GlobalSetup]
 	public void Setup()
@@ -43,48 +43,44 @@ public class OneOfProductionBenchmark
 		_boxingArray = new HeavyIdBoxing[Count];
 		_oneOfArray = new OneOf<Guid, long, int>[Count];
 
-		Console.WriteLine($"[Metadata] Size of Explicit: {Unsafe.SizeOf<HeavyIdExplicit>()} bytes");
-		Console.WriteLine($"[Metadata] Size of Composition: {Unsafe.SizeOf<HeavyIdComposition>()} bytes");
-		Console.WriteLine($"[Metadata] Size of OneOf: {Unsafe.SizeOf<OneOf<Guid, long, int>>()} bytes");
-
 		var rnd = new Random(42);
 		for (int i = 0; i < Count; i++)
 		{
 			int type = rnd.Next(0, 3);
-			if (type == 0)
+			switch (type)
 			{
-				_explicitArray[i] = _testGuid;
-				_compositionArray[i] = _testGuid;
-				_boxingArray[i] = _testGuid;
-				_oneOfArray[i] = _testGuid;
-			}
-			else if (type == 1)
-			{
-				_explicitArray[i] = _testLong;
-				_compositionArray[i] = _testLong;
-				_boxingArray[i] = _testLong;
-				_oneOfArray[i] = _testLong;
-			}
-			else
-			{
-				_explicitArray[i] = _testInt;
-				_compositionArray[i] = _testInt;
-				_boxingArray[i] = _testInt;
-				_oneOfArray[i] = _testInt;
+				case 0:
+					_explicitArray[i] = _testGuid;
+					_compositionArray[i] = _testGuid;
+					_boxingArray[i] = _testGuid;
+					_oneOfArray[i] = _testGuid;
+					break;
+				case 1:
+					_explicitArray[i] = _testLong;
+					_compositionArray[i] = _testLong;
+					_boxingArray[i] = _testLong;
+					_oneOfArray[i] = _testLong;
+					break;
+				case 2:
+					_explicitArray[i] = _testInt;
+					_compositionArray[i] = _testInt;
+					_boxingArray[i] = _testInt;
+					_oneOfArray[i] = _testInt;
+					break;
 			}
 		}
 	}
 
-	[Benchmark(Baseline = true)] [BenchmarkCategory("Access")]
+	[Benchmark(Baseline = true)]
+	[BenchmarkCategory("Access")]
 	public long Match_OneOf_Massive()
 	{
 		long sum = 0;
-		for (int i = 0; i < _oneOfArray.Length; i++)
+		var source = _oneOfArray;
+		for (int i = 0; i < source.Length; i++)
 		{
-			OneOf<Guid, long, int> item = _oneOfArray[i];
-			sum += item.Match(g => g.GetHashCode(), l => (int)(l % 1000), i => i);
+			sum += source[i].Match(g => g.GetHashCode(), l => (int)(l % 1000), val => val);
 		}
-
 		return sum;
 	}
 
@@ -93,40 +89,11 @@ public class OneOfProductionBenchmark
 	public long Match_Explicit_Massive()
 	{
 		long sum = 0;
-		for (int i = 0; i < _explicitArray.Length; i++)
+		var source = _explicitArray;
+		for (int i = 0; i < source.Length; i++)
 		{
-			HeavyIdExplicit item = _explicitArray[i];
-			sum += item.Match(g => g.GetHashCode(), l => (int)(l % 1000), i => i);
+			sum += source[i].Match(g => g.GetHashCode(), l => (int)(l % 1000), val => val);
 		}
-
-		return sum;
-	}
-
-	[Benchmark]
-	[BenchmarkCategory("Access")]
-	public long Match_Composition_Massive()
-	{
-		long sum = 0;
-		for (int i = 0; i < _compositionArray.Length; i++)
-		{
-			HeavyIdComposition item = _compositionArray[i];
-			sum += item.Match(g => g.GetHashCode(), l => (int)(l % 1000), i => i);
-		}
-
-		return sum;
-	}
-
-	[Benchmark]
-	[BenchmarkCategory("Access")]
-	public long Match_Boxing_Massive()
-	{
-		long sum = 0;
-		for (int i = 0; i < _boxingArray.Length; i++)
-		{
-			HeavyIdBoxing item = _boxingArray[i];
-			sum += item.Match(g => g.GetHashCode(), l => (int)(l % 1000), i => i);
-		}
-
 		return sum;
 	}
 
@@ -135,14 +102,15 @@ public class OneOfProductionBenchmark
 	public long DirectSwitch_Explicit_Massive()
 	{
 		long sum = 0;
-		for (int i = 0; i < _explicitArray.Length; i++)
+		var source = _explicitArray;
+		for (int i = 0; i < source.Length; i++)
 		{
-			HeavyIdExplicit item = _explicitArray[i];
-			sum += item.Index switch
+			ref readonly var item = ref source[i];
+			sum += item.Kind switch
 			{
-				0 => item.First.GetHashCode(),
-				1 => (int)(item.Second % 1000),
-				2 => item.Third,
+				HeavyIdExplicit.OneOfHeavyIdExplicit.First => item.First.GetHashCode(),
+				HeavyIdExplicit.OneOfHeavyIdExplicit.Second => (int)(item.Second % 1000),
+				HeavyIdExplicit.OneOfHeavyIdExplicit.Third => item.Third,
 				_ => 0
 			};
 		}
@@ -150,27 +118,59 @@ public class OneOfProductionBenchmark
 	}
 
 	[Benchmark]
-	[BenchmarkCategory("Creation")]
-	public void Create_OneOf()
+	[BenchmarkCategory("Access")]
+	public long Match_Composition_Massive()
 	{
-		var arr = new OneOf<Guid, long, int>[100];
-		for (int i = 0; i < 100; i++) arr[i] = _testGuid;
+		long sum = 0;
+		var source = _compositionArray;
+		for (int i = 0; i < source.Length; i++)
+		{
+			sum += source[i].Match(g => g.GetHashCode(), l => (int)(l % 1000), val => val);
+		}
+		return sum;
+	}
+
+	[Benchmark]
+	[BenchmarkCategory("Access")]
+	public long Match_Boxing_Massive()
+	{
+		long sum = 0;
+		var source = _boxingArray;
+		for (int i = 0; i < source.Length; i++)
+		{
+			sum += source[i].Match(g => g.GetHashCode(), l => (int)(l % 1000), val => val);
+		}
+		return sum;
 	}
 
 	[Benchmark]
 	[BenchmarkCategory("Creation")]
-	public void Create_Explicit()
+	public OneOf<Guid, long, int>[] Create_OneOf()
 	{
-		var arr = new HeavyIdExplicit[100];
-		for (int i = 0; i < 100; i++) arr[i] = _testGuid;
+		var arr = new OneOf<Guid, long, int>[CreateBatchSize];
+		for (int i = 0; i < CreateBatchSize; i++)
+			arr[i] = _testGuid;
+		return arr;
 	}
 
 	[Benchmark]
 	[BenchmarkCategory("Creation")]
-	public void Create_Boxing()
+	public HeavyIdExplicit[] Create_Explicit()
 	{
-		var arr = new HeavyIdBoxing[100];
-		for (int i = 0; i < 100; i++) arr[i] = _testGuid;
+		var arr = new HeavyIdExplicit[CreateBatchSize];
+		for (int i = 0; i < CreateBatchSize; i++)
+			arr[i] = _testGuid;
+		return arr;
+	}
+
+	[Benchmark]
+	[BenchmarkCategory("Creation")]
+	public HeavyIdBoxing[] Create_Boxing()
+	{
+		var arr = new HeavyIdBoxing[CreateBatchSize];
+		for (int i = 0; i < CreateBatchSize; i++)
+			arr[i] = _testGuid;
+		return arr;
 	}
 }
 
