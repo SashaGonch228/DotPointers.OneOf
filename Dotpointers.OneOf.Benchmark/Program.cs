@@ -172,6 +172,16 @@ public class OneOfProductionBenchmark
 			arr[i] = _testGuid;
 		return arr;
 	}
+
+	[Benchmark]
+	[BenchmarkCategory("Composition")]
+	public HeavyIdComposition[] Create_Composition()
+	{
+		var arr = new HeavyIdComposition[CreateBatchSize];
+		for (int i = 0; i < CreateBatchSize; i++)
+			arr[i] = _testGuid;
+		return arr;
+	}
 }
 
 [ShortRunJob]

@@ -174,12 +174,21 @@ Domain & Logic Types
 
 ### 💥 Benchmark
 
-| Method                        | Mean         | Ratio | Code Size | Allocated | Object size |
-|------------------------------ |-------------:|------:|----------:|----------:|------------:|
-| mcintyre321 OneOf Match       | 1.361 ms     |  1.00 |     758 B |         - |        32 B |
-| Match_Explicit_Massive        | **1.152 ms** |  0.85 |     745 B |         - |    **20 B** |
-| Match_Composition_Massive     | 1.291 ms     |  0.95 |     748 B |         - |        32 B |
-| DirectSwitch_Explicit_Massive | **1.168 ms** |  0.86 | **224 B** |         - |    **20 B** |
+#### Match Performance
+
+| Method                        | Mean         | Ratio | Code Size | Object size |
+|------------------------------ |-------------:|------:|----------:|------------:|
+| mcintyre321 OneOf Match       | 1.112 ms     |  1.00 |     720 B |        32 B |
+| Explicit Match                | **1.049 ms** |  0.94 |     706 B |    **20 B** |
+| Composition Match             | 1.083 ms     |  0.97 |     706 B |        32 B |
+| Explicit DirectSwitch         | **0,958 ms** |  0.86 | **224 B** |    **20 B** |
+
+#### Creation Performance
+
+| Method                   | Mean         | Ratio | Code Size | Object size |
+|------------------------- |-------------:|------:|----------:|------------:|
+| mcintyre321 OneOf Create | 490 ms       |  1.00 |     82 B  |        32 B |
+| Explicit Create          | **417 ns**   |  0.94 |     90 B  |    **20 B** |
 
 *Object size measured for a Union of 3 value types (GUID, long, int).*
 

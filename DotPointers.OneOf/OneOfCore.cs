@@ -8,7 +8,7 @@ namespace DotPointers.OneOf
 		public GenerateOneOfAttribute() { }
 #pragma warning disable RCS1163
 #pragma warning disable IDE0060
-		public GenerateOneOfAttribute(string[]? FieldNames = null, bool AllowEmpty = false, OneOfLayoutKind Layout = OneOfLayoutKind.Auto, KindPosition KindPos = KindPosition.Before, KindSize KindSize = KindSize.Int, bool GenerateInfo = true) { }
+		public GenerateOneOfAttribute(string[]? FieldNames = null, bool AllowEmpty = false, OneOfLayoutKind Layout = OneOfLayoutKind.Auto, KindPosition KindPos = KindPosition.After, KindSize KindSize = KindSize.Int, bool GenerateInfo = true) { }
 #pragma warning restore IDE0060
 #pragma warning restore RCS1163
 	}
