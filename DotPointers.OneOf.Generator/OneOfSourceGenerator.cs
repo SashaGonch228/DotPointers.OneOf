@@ -57,13 +57,12 @@ namespace DotPointers.OneOf.Generator
 				sb.Increase();
 			}
 
-
-
 			#region Definition
 
+			GenerateXmlDoc(sb, $"Represents a discriminated union of types for {model.FullName}.");
 			sb.AppendLine($"[DebuggerDisplay(\"{{DebuggerDisplay,nq}}\")]");
 			sb.AppendLine(CompilerGeneratedAttribute);
-			sb.AppendIntend();
+			sb.AppendIndent();
 			sb.Append($"{model.TypeKind.Replace("struct", "partial struct").Replace("class", "partial class")} {model.FullName}");
 			if (!model.IsRef)
 			{
@@ -160,14 +159,15 @@ namespace DotPointers.OneOf.Generator
 					_ => (hasRef && hasVal) ? "object? @ref, " + unionName + " data" : hasRef ? "object? @ref" : unionName + " data"
 				};
 
+				GenerateXmlDoc(sb, "Internal constructor. Initializes the union with the specified kind and underlying data structure according to the determined layout.");
 				sb.AppendLine(Inline);
 				sb.AppendLine($"private {model.Name}({enumName} kind, {masterParams})");
 
 				using (sb.EnterScope())
 				{
 					sb.AppendLine("Unsafe.SkipInit(out this);");
-
 					sb.AppendLine("this._kind = kind;");
+
 					if (layout == OneOfLayoutKind.Composition)
 					{
 						for (int i = 0; i < count; i++)
@@ -214,6 +214,8 @@ namespace DotPointers.OneOf.Generator
 
 				if (!model.AllowEmpty)
 				{
+					GenerateXmlDoc(sb, "Initializes an empty instance of the union. Throws an exception since this union does not allow empty states.");
+					sb.AppendLine($"/// <exception cref=\"InvalidOperationException\">Always thrown.</exception>");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public {model.Name}()");
 					using (sb.EnterScope())
@@ -235,6 +237,7 @@ namespace DotPointers.OneOf.Generator
 					if (indices.Count == 1)
 					{
 						int i = indices[0];
+						GenerateXmlDoc(sb, $"Initializes a new instance of {model.FullName} with a value of type <see cref=\"{type.FullName}\" />.", paramName: "value", paramDesc: "The initial value.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public {model.Name}({type.FullName} value)");
 
@@ -250,6 +253,8 @@ namespace DotPointers.OneOf.Generator
 					{
 						var validKinds = string.Join(" || ", indices.Select(idx => $"kind == {enumName}.{model.FieldNames[idx]}"));
 
+						GenerateXmlDoc(sb, $"Initializes a new instance of {model.FullName} with the value set to one of its contained types.", paramName: "value", paramDesc: $"The initial value for the union member. Must correspond to the provided kind.");
+						sb.AppendLine($"/// <param name=\"kind\">The explicit kind to identify the ambiguous type.</param>");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public {model.Name}({type.FullName} value, {enumName} kind)");
 						using (sb.EnterScope())
@@ -270,32 +275,32 @@ namespace DotPointers.OneOf.Generator
 				if (isClass) sb.AppendLine("#pragma warning restore CS8618");
 				sb.AppendLine("#pragma warning restore CS8618");
 
-				void GenerateAssignment(TypeInfoModel t, int index, IndentedWriter sb, List<int>? ambiguousIndices = null)
+				void GenerateAssignment(TypeInfoModel t, int index, IndentedWriter w, List<int>? ambiguousIndices = null)
 				{
 					if (t.IsVoid) { return; }
 
 					if (t.IsReferenceType)
 					{
-						sb.AppendLine($"if (value is null) {{ {ThrowHelper}.ThrowNull(nameof(value)); }}");
+						w.AppendLine($"if (value is null) {{ {ThrowHelper}.ThrowNull(nameof(value)); }}");
 					}
 
 					if (layout == OneOfLayoutKind.ExplicitUnion && !t.IsReferenceType)
 					{
-						sb.AppendLine("global::System.Runtime.CompilerServices.Unsafe.SkipInit(out this._data);");
+						w.AppendLine("global::System.Runtime.CompilerServices.Unsafe.SkipInit(out this._data);");
 					}
 
 					if (ambiguousIndices == null)
 					{
-						sb.AppendLine($"this.{UnsafeSet(index)} = value;");
+						w.AppendLine($"this.{UnsafeSet(index)} = value;");
 					}
 					else
 					{
-						sb.AppendLine("switch (kind)");
-						using (sb.EnterScope())
+						w.AppendLine("switch (kind)");
+						using (w.EnterScope())
 						{
 							foreach (var idx in ambiguousIndices)
 							{
-								sb.AppendLine($"case {enumName}.{model.FieldNames[idx]}: this.{UnsafeSet(idx)} = value; break;");
+								w.AppendLine($"case {enumName}.{model.FieldNames[idx]}: this.{UnsafeSet(idx)} = value; break;");
 							}
 						}
 					}
@@ -305,6 +310,7 @@ namespace DotPointers.OneOf.Generator
 
 				if (model.AllowEmpty)
 				{
+					GenerateXmlDoc(sb, "Gets an empty instance of this union.");
 					sb.AppendLine($"public static {model.FullName} Empty => new();");
 					sb.AppendLine();
 				}
@@ -314,6 +320,15 @@ namespace DotPointers.OneOf.Generator
 				{
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
+
+					if (type.IsVoid)
+					{
+						GenerateXmlDoc(sb, $"Creates a new instance of {model.FullName} representing the <see cref=\"{field}\" /> state.", returns: $"A new {model.FullName} instance.");
+					}
+					else
+					{
+						GenerateXmlDoc(sb, $"Creates a new instance of {model.FullName} from a value of type <see cref=\"{type.FullName}\" />.", returns: $"A new {model.FullName} instance.", paramName: "obj", paramDesc: "The value to wrap.");
+					}
 
 					sb.AppendLine(Inline);
 					if (uniqTypes.Contains(i))
@@ -356,9 +371,13 @@ namespace DotPointers.OneOf.Generator
 
 				#region Get / Is
 
+				GenerateXmlDoc(sb, "Gets the kind of the current value.");
 				sb.AppendLine($"public{read} {enumName} Kind => _kind;");
 
+				GenerateXmlDoc(sb, "Gets the integer index of the current kind.");
 				sb.AppendLine($"public{read} int Index => (int)_kind;");
+
+				GenerateXmlDoc(sb, "Gets the boxed value of the current instance.");
 				sb.AppendLine($"public{read} object? BoxValue => _kind switch");
 				sb.AppendLine("{");
 				sb.Increase();
@@ -377,6 +396,9 @@ namespace DotPointers.OneOf.Generator
 				{
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
+
+					GenerateXmlDoc(sb, $"Gets the value of the <see cref=\"{field}\" /> member.", returns: $"The value of the <see cref=\"{field}\" /> member.");
+					sb.AppendLine($"/// <exception cref=\"InvalidOperationException\">Thrown if the union instance does not currently hold the <see cref=\"{field}\" /> type.</exception>");
 					sb.AppendLine($"public{read} {type.FullName} {field}");
 					using (sb.EnterScope())
 					{
@@ -385,24 +407,27 @@ namespace DotPointers.OneOf.Generator
 						using (sb.EnterScope(false))
 						{
 							sb.AppendLine($"if (_kind != {enumName}.{field})");
-							using (sb.EnterScope(false))
+							using (sb.EnterScope())
 							{
-								sb.AppendLine($"{ThrowHelper}.ThrowInvalid<{enumName}>((int){enumName}.{field}, (int)_kind);");
+								sb.AppendLine($"{ThrowHelper}.ThrowInvalid<{enumName}>({i}, (int)_kind);");
 							}
 							sb.AppendLine($"return {UnsafeGet(i)};");
 						}
 					}
 
+					GenerateXmlDoc(sb, $"Gets the value of the <see cref=\"{field}\" /> member, or the default value if the union does not hold this type.", returns: $"The value of the <see cref=\"{field}\" /> member, or default.");
 					sb.AppendLine($"public{read} {type.FullName}? {field}OrDefault => _kind == {enumName}.{field} ? {UnsafeGet(i)}: default;");
 					sb.AppendLine();
 				}
 
 				if (model.AllowEmpty)
 				{
+					GenerateXmlDoc(sb, "Gets a value indicating whether this instance is empty.");
 					sb.AppendLine($"public{read} bool IsEmpty => _kind == {enumName}.Empty;");
 				}
 				foreach (var field in model.FieldNames)
 				{
+					GenerateXmlDoc(sb, $"Gets a value indicating whether this instance holds the type <see cref=\"{field}\" />.");
 					sb.AppendLine($"public{read} bool Is{field} => _kind == {enumName}.{field};");
 				}
 				sb.AppendLine();
@@ -415,6 +440,8 @@ namespace DotPointers.OneOf.Generator
 				{
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
+
+					GenerateXmlDoc(sb, $"Attempts to get the value of the <see cref=\"{field}\" /> member.", returns: $"True if the union currently holds the <see cref=\"{field}\" /> type; otherwise, false.", paramName: "OutValue", paramDesc: $"When this method returns true, contains the value.");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public{read} bool TryGet{field}([NotNullWhen(true)] out {type.FullName}{(type.IsReferenceType ? "?" : string.Empty)} OutValue)");
 					using (sb.EnterScope())
@@ -439,6 +466,10 @@ namespace DotPointers.OneOf.Generator
 				{
 					var type = model.TypeArgs[i];
 					var field = model.FieldNames[i];
+
+					GenerateXmlDoc(sb, $"Attempts to extract the value of the <see cref=\"{field}\" /> member, returning the remainder of the union if successful.", returns: $"True if the union currently holds the <see cref=\"{field}\" /> type; otherwise, false.");
+					sb.AppendLine($"/// <param name=\"OutValue\">When this method returns true, contains the value of the <see cref=\"{field}\" /> member.</param>");
+					sb.AppendLine($"/// <param name=\"Remainder\">When this method returns false, contains the remaining union instance.</param>");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public{read} bool TryPick{field}([NotNullWhen(true)] out {type.FullName}{(type.IsReferenceType ? "?" : string.Empty)} OutValue, [NotNullWhen(false)] out {model.FullName}{(model.TypeKind.Contains("class") ? "?" : string.Empty)} Remainder)");
 					using (sb.EnterScope())
@@ -460,8 +491,15 @@ namespace DotPointers.OneOf.Generator
 
 				#region Switch / Match
 
+				GenerateXmlDoc(sb, "Executes a specified action based on the current type held by the union.");
+				for (int i = 0; i < count; i++)
+				{
+					sb.AppendLine($"/// <param name=\"On{model.FieldNames[i]}\">The action to execute if the union holds the <see cref=\"{model.FieldNames[i]}\" /> type.</param>");
+				}
+				if (model.AllowEmpty) sb.AppendLine("/// <param name=\"OnEmpty\">The action to execute if the union is empty.</param>");
+
 				sb.AppendLine(Inline);
-				sb.AppendIntend();
+				sb.AppendIndent();
 				sb.Append($"public{read} void Switch(");
 				for (int i = 0; i < count; i++)
 				{
@@ -494,8 +532,15 @@ namespace DotPointers.OneOf.Generator
 					sb.AppendLine($"{ThrowHelper}.ThrowEmpty(\"{model.FullName}\");");
 				}
 
+				GenerateXmlDoc(sb, "Executes a specified function based on the current type held by the union and returns the result.", returns: "The result of the executed function.");
+				for (int i = 0; i < count; i++)
+				{
+					sb.AppendLine($"/// <param name=\"On{model.FieldNames[i]}\">The function to execute if the union holds the <see cref=\"{model.FieldNames[i]}\" /> type.</param>");
+				}
+				if (model.AllowEmpty) sb.AppendLine("/// <param name=\"OnEmpty\">The function to execute if the union is empty.</param>");
+
 				sb.AppendLine(Inline);
-				sb.AppendIntend();
+				sb.AppendIndent();
 				sb.Append($"public{read} TResult Match<TResult>(");
 				for (int i = 0; i < count; i++)
 				{
@@ -532,8 +577,16 @@ namespace DotPointers.OneOf.Generator
 
 				#region Switch / Match with context
 
+				GenerateXmlDoc(sb, "Executes a specified action based on the current type held by the union, passing a custom context.");
+				for (int i = 0; i < count; i++)
+				{
+					sb.AppendLine($"/// <param name=\"On{model.FieldNames[i]}\">The action to execute if the union holds the <see cref=\"{model.FieldNames[i]}\" /> type.</param>");
+				}
+				if (model.AllowEmpty) sb.AppendLine("/// <param name=\"OnEmpty\">The action to execute if the union is empty.</param>");
+				sb.AppendLine("/// <param name=\"context\">The state to pass to the action.</param>");
+
 				sb.AppendLine(Inline);
-				sb.AppendIntend();
+				sb.AppendIndent();
 				sb.Append($"public{read} void Switch<TContext>(");
 				for (int i = 0; i < count; i++)
 				{
@@ -567,8 +620,16 @@ namespace DotPointers.OneOf.Generator
 					sb.AppendLine($"{ThrowHelper}.ThrowEmpty(\"{model.FullName}\");");
 				}
 
+				GenerateXmlDoc(sb, "Executes a specified function based on the current type held by the union, passing a custom context, and returns the result.", returns: "The result of the executed function.");
+				for (int i = 0; i < count; i++)
+				{
+					sb.AppendLine($"/// <param name=\"On{model.FieldNames[i]}\">The function to execute if the union holds the <see cref=\"{model.FieldNames[i]}\" /> type.</param>");
+				}
+				if (model.AllowEmpty) sb.AppendLine("/// <param name=\"OnEmpty\">The function to execute if the union is empty.</param>");
+				sb.AppendLine("/// <param name=\"context\">The state to pass to the function.</param>");
+
 				sb.AppendLine(Inline);
-				sb.AppendIntend();
+				sb.AppendIndent();
 				sb.Append($"public{read} TResult Match<TResult, TContext>(");
 				for (int i = 0; i < count; i++)
 				{
@@ -608,8 +669,16 @@ namespace DotPointers.OneOf.Generator
 
 				if (!model.IsRef)
 				{
+					GenerateXmlDoc(sb, "Asynchronously executes the action corresponding to the current type held by the union.", returns: "A <see cref=\"ValueTask\" /> representing the asynchronous operation.");
+					for (int i = 0; i < count; i++)
+					{
+						sb.AppendLine($"/// <param name=\"On{model.FieldNames[i]}\">The async action to execute if the union holds the <see cref=\"{model.FieldNames[i]}\" /> type.</param>");
+					}
+					if (model.AllowEmpty) sb.AppendLine("/// <param name=\"OnEmpty\">The async action to execute if the union is empty.</param>");
+					sb.AppendLine($"/// <remarks>If the union is empty and no corresponding action is provided, this method throws an exception.</remarks>");
+
 					sb.AppendLine(Inline);
-					sb.AppendIntend();
+					sb.AppendIndent();
 					sb.Append($"public{read} async ValueTask SwitchAsync(");
 					for (int i = 0; i < count; i++)
 					{
@@ -641,8 +710,17 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine($"{ThrowHelper}.ThrowEmpty(\"{model.FullName}\");");
 					}
 
+
+					GenerateXmlDoc(sb, "Asynchronously executes the function corresponding to the current type held by the union, returning a result.", returns: "A <see cref=\"ValueTask{{TResult}}\" /> representing the asynchronous operation.");
+					for (int i = 0; i < count; i++)
+					{
+						sb.AppendLine($"/// <param name=\"On{model.FieldNames[i]}\">The async function to execute if the union holds the <see cref=\"{model.FieldNames[i]}\" /> type.</param>");
+					}
+					if (model.AllowEmpty) sb.AppendLine("/// <param name=\"OnEmpty\">The async function to execute if the union is empty.</param>");
+					sb.AppendLine($"/// <exception cref=\"InvalidOperationException\">Thrown if the union instance is empty and no OnEmpty function is provided.</exception>");
+
 					sb.AppendLine(Inline);
-					sb.AppendIntend();
+					sb.AppendIndent();
 					sb.Append($"public{read} async ValueTask<TResult> MatchAsync<TResult>(");
 					for (int i = 0; i < count; i++)
 					{
@@ -685,6 +763,7 @@ namespace DotPointers.OneOf.Generator
 
 					if (type.IsVoid) { continue; }
 
+					GenerateXmlDoc(sb, $"Returns a new {model.FullName} instance where the current member's value has been transformed by the mapper function.", returns: $"A new {model.FullName} instance containing the mapped value, or this instance if it does not hold the {field} type.", paramName: "mapper", paramDesc: "The function to apply to the current member's value.");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public{read} {model.FullName} Map{field}(Func<{type.FullName}, {type.FullName}> mapper)");
 					using (sb.EnterScope())
@@ -716,6 +795,7 @@ namespace DotPointers.OneOf.Generator
 						f.Parameters.Length == 1 &&
 						f.Parameters[0] == model.FullName))
 					{
+						GenerateXmlDoc(sb, "Determines whether the specified union instance is equal to the current instance.", returns: "True if equal; otherwise, false.", paramName: "other", paramDesc: "The union instance to compare with.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public{read} bool Equals({model.FullName}{(isClass ? "?" : string.Empty)} other)");
 						using (sb.EnterScope())
@@ -750,6 +830,7 @@ namespace DotPointers.OneOf.Generator
 						f.Parameters.Length == 1 &&
 						(f.Parameters[0] == "object?" || f.Parameters[0] == "object")))
 					{
+						GenerateXmlDoc(sb, "Determines whether the specified object is equal to the current instance.", returns: "True if equal; otherwise, false.", paramName: "obj", paramDesc: "The object to compare with.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public{read} override bool Equals(object? obj) => obj is " + model.FullName + " other && Equals(other);");
 						sb.AppendLine();
@@ -759,6 +840,7 @@ namespace DotPointers.OneOf.Generator
 						f.Name == "GetHashCode()" &&
 						f.Parameters.Length == 0))
 					{
+						GenerateXmlDoc(sb, "Returns the hash code for this instance.", returns: "A 32-bit signed integer that is the hash code for this instance.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public{read} override int GetHashCode()");
 						using (sb.EnterScope())
@@ -793,15 +875,21 @@ namespace DotPointers.OneOf.Generator
 
 					if (!isClass)
 					{
+						GenerateXmlDoc(sb, "Determines whether two union instances are equal.", returns: "True if equal; otherwise, false.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static bool operator ==({model.FullName} left, {model.FullName} right) => left.Equals(right);");
+
+						GenerateXmlDoc(sb, "Determines whether two union instances are not equal.", returns: "True if not equal; otherwise, false.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static bool operator !=({model.FullName} left, {model.FullName} right) => !left.Equals(right);");
 					}
 					else
 					{
+						GenerateXmlDoc(sb, "Determines whether two union instances are equal.", returns: "True if equal; otherwise, false.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static bool operator ==({model.FullName}? left, {model.FullName}? right) => ReferenceEquals(left, right) ? true : (((object?)left) == null ? false : left.Equals(right));");
+
+						GenerateXmlDoc(sb, "Determines whether two union instances are not equal.", returns: "True if not equal; otherwise, false.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static bool operator !=({model.FullName}? left, {model.FullName}? right) => ReferenceEquals(left, right) ? false :(((object?)left) == null ? true : !left.Equals(right));");
 					}
@@ -814,13 +902,21 @@ namespace DotPointers.OneOf.Generator
 
 				if (!model.TypeArgs.All(x => x.IsVoid))
 				{
+					GenerateXmlDoc(sb, "Deconstructs the union into its kind and values.");
+					sb.AppendLine("/// <param name=\"kind\">The kind of the current union instance.</param>");
+					for (int i = 0; i < count; i++)
+					{
+						sb.AppendLine($"/// <param name=\"{model.FieldNames[i].ToLower()}\">The out variable for the <see cref=\"{model.FieldNames[i]}\" /> member.</param>");
+					}
+
 					sb.AppendLine(Inline);
 					sb.Append($"\t\tpublic{read} void Deconstruct(out {enumName} kind");
 					for (int i = 0; i < count; i++)
 					{
 						sb.Append($", out {model.TypeArgs[i].FullName}? {model.FieldNames[i].ToLower()}");
 					}
-					sb.AppendLine(")");
+					sb.Append(")");
+					sb.AppendLine();
 					using (sb.EnterScope())
 					{
 						sb.AppendLine("kind = _kind;");
@@ -842,8 +938,10 @@ namespace DotPointers.OneOf.Generator
 					if (model.TypeArgs.Count(x => x.FullName == type.FullName) >= 2) { continue; }
 					if (type.FullName == "object") { continue; }
 					if (type.IsInterface) { continue; }
+
+					GenerateXmlDoc(sb, $"Implicitly converts a value of type <see cref=\"{type.FullName}\" /> to a {model.FullName} instance.", returns: "A new union instance.", paramName: "value", paramDesc: "The value to convert.");
 					sb.AppendLine(Inline);
-					sb.AppendIntend();
+					sb.AppendIndent();
 					sb.Append($"public static implicit operator {model.FullName}({type.FullName} value) => ");
 					if (type.IsReferenceType)
 					{
@@ -855,6 +953,9 @@ namespace DotPointers.OneOf.Generator
 						sb.Append("new(value);");
 						sb.AppendLine();
 					}
+
+					GenerateXmlDoc(sb, $"Explicitly converts a {model.FullName} instance to a value of type <see cref=\"{type.FullName}\" />.", returns: "The underlying value.", paramName: "source", paramDesc: "The union instance to convert.");
+					sb.AppendLine($"/// <exception cref=\"InvalidOperationException\">Thrown if the union does not hold the requested type.</exception>");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public static explicit operator {type.FullName}({model.FullName} source) => source.{field};");
 					sb.AppendLine();
@@ -866,6 +967,7 @@ namespace DotPointers.OneOf.Generator
 
 				if (!model.IsRef)
 				{
+					GenerateXmlDoc(sb, "Returns an enumerable containing the current instance if it is not empty.", returns: "A single-element enumerable or an empty enumerable.");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public{read} DotPointers.OneOf.SingleEnumerable<{model.FullName}> AsEnumerable() => new(this);");
 				}
@@ -878,6 +980,7 @@ namespace DotPointers.OneOf.Generator
 						f.Name == "ToString" &&
 						f.Parameters.Length == 0))
 				{
+					GenerateXmlDoc(sb, "Returns a string that represents the current object.", returns: "A string representation of the current object.");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public{read} override string? ToString() => _kind switch");
 					sb.AppendLine("{");
@@ -910,9 +1013,11 @@ namespace DotPointers.OneOf.Generator
 
 				#region Chain
 
+				GenerateXmlDoc(sb, "Starts a method chain for conditional execution based on the union's value.", returns: "A chain context to continue the execution.");
 				sb.AppendLine(Inline);
 				sb.AppendLine($"public{read} ChainContext Chain() => new(this);");
 
+				GenerateXmlDoc(sb, "Represents a context for chaining conditional operations on the union.");
 				sb.AppendLine("public readonly ref struct ChainContext");
 				using (sb.EnterScope())
 				{
@@ -935,6 +1040,7 @@ namespace DotPointers.OneOf.Generator
 						var type = model.TypeArgs[i];
 						var field = model.FieldNames[i];
 
+						GenerateXmlDoc(sb, $"Evaluates a predicate if the union holds the <see cref=\"{field}\" /> type.", returns: "The updated chain context.", paramName: "predicate", paramDesc: "The predicate to evaluate.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public{read} ChainContext If{field}(Predicate<{type.FullName}> predicate)");
 						using (sb.EnterScope())
@@ -944,6 +1050,7 @@ namespace DotPointers.OneOf.Generator
 							sb.AppendLine($"return new ChainContext(_source, false, _source.Kind == {enumName}.{field} && predicate.Invoke(_source.{field}Force));");
 						}
 
+						GenerateXmlDoc(sb, $"Checks if the union holds the <see cref=\"{field}\" /> type.", returns: "The updated chain context.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public ChainContext If{field}()");
 						using (sb.EnterScope())
@@ -959,6 +1066,7 @@ namespace DotPointers.OneOf.Generator
 						var type = model.TypeArgs[i];
 						var field = model.FieldNames[i];
 
+						GenerateXmlDoc(sb, "Executes the action if the previous condition was met.", returns: "The updated chain context.", paramName: "action", paramDesc: "The action to execute.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public readonly ChainContext Then(Action<{type.FullName}> action)");
 						using (sb.EnterScope())
@@ -969,6 +1077,7 @@ namespace DotPointers.OneOf.Generator
 						}
 					}
 
+					GenerateXmlDoc(sb, "Executes the fallback action if no previous condition was met.", paramName: "action", paramDesc: "The fallback action to execute.");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public readonly void Else(Action<{model.FullName}> action)");
 					using (sb.EnterScope())
@@ -976,10 +1085,12 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine("if (!_consumed) { action.Invoke(_source); }");
 					}
 
+					GenerateXmlDoc(sb, "Terminates the chain.");
 					sb.AppendLine(Inline);
 					sb.AppendLine("public readonly void End() { }");
 					sb.AppendLine();
 
+					GenerateXmlDoc(sb, "Breaks out of the chain if the previous condition was met.", returns: "The updated chain context.");
 					sb.AppendLine(Inline);
 					sb.AppendLine("public readonly ChainContext Break()");
 					using (sb.EnterScope())
@@ -988,6 +1099,7 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine("return new ChainContext(_source, true, false);");
 					}
 
+					GenerateXmlDoc(sb, "Resets the consumed state to continue the chain evaluation.", returns: "The updated chain context.");
 					sb.AppendLine(Inline);
 					sb.AppendLine($"public readonly ChainContext Continue()");
 					using (sb.EnterScope(false))
@@ -1002,6 +1114,7 @@ namespace DotPointers.OneOf.Generator
 
 				if (model.GenerateMetadata)
 				{
+					GenerateXmlDoc(sb, "Contains structural metadata for the union.");
 					sb.AppendLine("public static class Metadata");
 					using (sb.EnterScope())
 					{
@@ -1052,6 +1165,7 @@ namespace DotPointers.OneOf.Generator
 
 				#endregion
 
+				GenerateXmlDoc(sb, $"Defines the possible kinds for the {model.FullName} union.");
 				sb.AppendLine($"public enum {enumName} : {model.Kind.Size.ToString().ToLower()}");
 				using (sb.EnterScope(false))
 				{
@@ -1073,16 +1187,19 @@ namespace DotPointers.OneOf.Generator
 						var type = model.TypeArgs[i];
 						var field = model.FieldNames[i];
 
+						GenerateXmlDoc(sb, $"Filters a sequence of {model.FullName} instances to only those holding the <see cref=\"{field}\" /> type.", returns: "An enumerable of filtered instances.", paramName: "source", paramDesc: "The source sequence.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static IEnumerable<{model.FullName}> Where{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => x.Is{field});");
 
 						sb.AppendLine();
 
+						GenerateXmlDoc(sb, $"Filters a sequence of {model.FullName} instances to exclude those holding the <see cref=\"{field}\" /> type.", returns: "An enumerable of filtered instances.", paramName: "source", paramDesc: "The source sequence.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static IEnumerable<{model.FullName}> Exclude{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => !x.Is{field});");
 
 						sb.AppendLine();
 
+						GenerateXmlDoc(sb, $"Projects elements of a sequence of {model.FullName} holding the <see cref=\"{field}\" /> type into a new form.", returns: "An enumerable of projected values.", paramName: "source", paramDesc: "The source sequence.");
 						sb.AppendLine(Inline);
 						sb.AppendLine($"public static IEnumerable<{type.FullName}> Select{field}(this IEnumerable<{model.FullName}> source) => source.Where(static x => x.Is{field}).Select(static x => x.{field});");
 
@@ -1323,7 +1440,7 @@ namespace DotPointers.OneOf.Generator
 						sb.Increase();
 						for (int i = 0; i < model.TypeArgs.Length; i++)
 						{
-							sb.AppendIntend();
+							sb.AppendIndent();
 							sb.Append($"on{model.FieldNames[i]} => JsonSerializer.Serialize(writer, on{model.FieldNames[i]}, options)");
 							sb.Append(i < model.TypeArgs.Length - 1 || model.AllowEmpty ? "," : "");
 							sb.AppendLine();
@@ -1713,6 +1830,21 @@ namespace DotPointers.OneOf.Generator
 			}
 
 			return (OneOfLayoutKind.Composition, "Auto: Defaulting to composition");
+		}
+
+		private static void GenerateXmlDoc(IndentedWriter sb, string summary, string? returns = null, string? paramName = null, string? paramDesc = null)
+		{
+			sb.AppendLine("/// <summary>");
+			sb.AppendLine($"/// {summary}");
+			sb.AppendLine("/// </summary>");
+			if (paramName != null && paramDesc != null)
+			{
+				sb.AppendLine($"/// <param name=\"{paramName}\">{paramDesc}</param>");
+			}
+			if (returns != null)
+			{
+				sb.AppendLine($"/// <returns>{returns}</returns>");
+			}
 		}
 	}
 }

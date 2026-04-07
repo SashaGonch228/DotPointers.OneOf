@@ -29,7 +29,7 @@ namespace DotPointers.OneOf.Generator
 				return;
 			}
 
-			AppendIntend();
+			AppendIndent();
 			_sb.AppendLine(line);
 		}
 
@@ -44,7 +44,7 @@ namespace DotPointers.OneOf.Generator
 			_sb.Append(text);
 		}
 
-		public void AppendIntend()
+		public void AppendIndent()
 		{
 			_sb.Append(IndentChar, _indent);
 		}
@@ -67,7 +67,7 @@ namespace DotPointers.OneOf.Generator
 			public void Dispose()
 			{
 				_writer.Decrease();
-				_writer.AppendIntend();
+				_writer.AppendIndent();
 				_writer.Append("}");
 				_writer.Append(_endLine);
 				_writer.AppendLine();
