@@ -48,8 +48,8 @@ public readonly partial struct Range : IOneOf<int, (int, int), Void, Void>
     public bool InRange(int value) => Match(
         s => value == s,
         b => value >= b.Item1 && value <= b.Item2,
-        static _ => true,
-        static _ => false
+        () => true,
+        () => false
     );
 }
 ```
@@ -64,8 +64,8 @@ Range range = (10, 20);
 range.Switch(
     s => Console.WriteLine($"Point: {s}"),
     b => Console.WriteLine($"Interval: {b.Item1} to {b.Item2}"),
-    _ => Console.WriteLine("Matches everything"),
-    _ => Console.WriteLine("Empty range")
+    () => Console.WriteLine("Matches everything"),
+    () => Console.WriteLine("Empty range")
 );
 ```
 
