@@ -32,6 +32,12 @@ namespace DotPointers.OneOf
 	}
 
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
+	public sealed class GenerateUnitySupportAttribute : Attribute
+	{
+		public GenerateUnitySupportAttribute() { }
+	}
+
+	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
 	public sealed class VoidTypeAttribute : Attribute
 	{
 		public VoidTypeAttribute() { }

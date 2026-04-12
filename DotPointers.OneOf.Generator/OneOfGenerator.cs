@@ -51,18 +51,12 @@ namespace DotPointers.OneOf.Generator
 				{
 					spc.AddSource($"{path}.MemoryPack.g.cs", SourceText.From(OneOfSourceGenerator.GenerateMemoryPackSource(model), Encoding.UTF8));
 				}
+
+				if (model.SerializeOption.HasFlag(Serialization.Unity))
+				{
+					spc.AddSource($"{path}.Unity.g.cs", SourceText.From(OneOfSourceGenerator.GenerateUnitySource(model), Encoding.UTF8));
+				}
 			});
-
-			//var uniqueNamespaces = targets
-			//	.Select(static (m, _) => m!.Namespace)
-			//	.Collect()
-			//	.SelectMany(static (namespaces, _) => namespaces.Distinct());
-
-			//context.RegisterSourceOutput(uniqueNamespaces, static (spc, ns) =>
-			//{
-			//	var fileName = string.IsNullOrEmpty(ns) ? "Global" : ns;
-			//	spc.AddSource($"{fileName}.OneOfThrowHelper.g.cs", SourceText.From(OneOfSourceGenerator.GenerateThrowHelper(ns), Encoding.UTF8));
-			//});
 		}
 
 		private static readonly string[] defaultFields = { "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth" };
@@ -97,6 +91,10 @@ namespace DotPointers.OneOf.Generator
 				else if (attrFullName == "DotPointers.OneOf.GenerateMemoryPackSupportAttribute")
 				{
 					serialize |= Serialization.MemoryPack;
+				}
+				else if (attrFullName == "DotPointers.OneOf.GenerateUnitySupportAttribute")
+				{
+					serialize |= Serialization.Unity;
 				}
 			}
 
@@ -199,7 +197,8 @@ namespace DotPointers.OneOf.Generator
 		None = 0,
 		SystemJson = 1,
 		NewtonsoftJson = 2,
-		MemoryPack = 4
+		MemoryPack = 4,
+		Unity = 8
 	}
 
 	public enum KindPosition { Before, After }
