@@ -8,7 +8,7 @@ using System.Text;
 namespace DotPointers.OneOf.Types
 {
 	[GenerateOneOf(["Single", "Multiple", "None"])]
-	public readonly partial struct Many<T> : IOneOf<T, IEnumerable<T>, Void>, IEnumerable<T>
+	public readonly partial struct Many<T> : IOneOf<T, IEnumerable<T>, None>, IEnumerable<T>
 	{
 		public readonly T? FirstOrDefault => IsSingle ? SingleForce : (IsMultiple ? MultipleForce.FirstOrDefault() : default);
 
@@ -23,12 +23,6 @@ namespace DotPointers.OneOf.Types
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		readonly IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Many<T> From(T value) => new(value);
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Many<T> From(IEnumerable<T> values) => new(values);
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static Many<T> Empty() => new(default(Void));
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static implicit operator Many<T>(T[] values) => new(values);
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]

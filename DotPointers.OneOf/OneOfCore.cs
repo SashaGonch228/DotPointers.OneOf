@@ -31,6 +31,12 @@ namespace DotPointers.OneOf
 		public GenerateMemoryPackSupportAttribute() { }
 	}
 
+	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
+	public sealed class VoidTypeAttribute : Attribute
+	{
+		public VoidTypeAttribute() { }
+	}
+
 	public interface IOneOf
 	{
 		public object? BoxValue { get; }

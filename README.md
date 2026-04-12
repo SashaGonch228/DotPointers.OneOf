@@ -145,6 +145,23 @@ partial struct MyUnion {
 }
 ```
 
+#### 3. Hybrid *(sizeof(IntPtr) + sum(sizeof(T struct)) + 4)*
+
+All value types are stored sequentially, and objects are stored in a single object field 
+
+**Pros:** The smallest possible struct size.
+
+**Cons:** Causes Boxing for value types, which is bad for high-performance scenarios. Use this primarily for classes or when memory size is more critical than GC pressure.
+
+```csharp
+partial struct MyUnion {
+    private readonly object? _ref;
+	private readonly long _v0;
+	private readonly int _v1;
+	private readonly short _v2;
+}
+```
+
 ### ⚙ Build-In types
 
 Core Containers
@@ -160,7 +177,7 @@ Collections
 
 | Type           | States (Options)       | Purpose |
 | -------------- | ---------------------- | ----- |
-| OneOrMany`<T>` | Single, Multiple       | Guarantees at least one element. Optimized to avoid allocations for single-item scenarios. |
+| OneOrMany`<T>` | Single, Multiple       | Guarantees at least one element. Optimized to avoid allocations for single-item scenarios. Implements IEnumerable<T>. |
 | Many`<T>`      | Single, Multiple, None | A versatile wrapper for 0, 1, or N elements. Implements IEnumerable<T>. |
 | Attempt`<T>`   | Value, Task            | Lazy data retrieval: either the value is already present, or it must be awaited via Task<T>. |
 

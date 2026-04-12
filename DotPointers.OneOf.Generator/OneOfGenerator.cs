@@ -128,7 +128,8 @@ namespace DotPointers.OneOf.Generator
 				IsReferenceType: t.IsReferenceType,
 				IsRefStruct: t.IsRefLikeType,
 				HasReferences: !t.IsValueType || !t.IsUnmanagedType,
-				IsInterface: t.TypeKind == TypeKind.Interface
+				IsInterface: t.TypeKind == TypeKind.Interface,
+				IsVoid: t.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "DotPointers.OneOf.VoidTypeAttribute")
 			)).ToImmutableArray();
 
 			var userMethods = symbol.GetMembers()
@@ -179,10 +180,7 @@ namespace DotPointers.OneOf.Generator
 		public string Generics => IsGeneric ? ('<' + FullName.Split('<')[1]) : string.Empty;
 	}
 
-	public record TypeInfoModel(string FullName, string ShortName, bool IsReferenceType, bool IsRefStruct, bool HasReferences, bool IsInterface)
-	{
-		public bool IsVoid => FullName == "global::DotPointers.OneOf.Void";
-	}
+	public record TypeInfoModel(string FullName, string ShortName, bool IsReferenceType, bool IsRefStruct, bool HasReferences, bool IsInterface, bool IsVoid);
 
 	public record UserMethodModel(string Name, EquatableArray<string> Parameters);
 
