@@ -53,16 +53,16 @@ namespace DotPointers.OneOf.Generator
 				}
 			});
 
-			var uniqueNamespaces = targets
-				.Select(static (m, _) => m!.Namespace)
-				.Collect()
-				.SelectMany(static (namespaces, _) => namespaces.Distinct());
+			//var uniqueNamespaces = targets
+			//	.Select(static (m, _) => m!.Namespace)
+			//	.Collect()
+			//	.SelectMany(static (namespaces, _) => namespaces.Distinct());
 
-			context.RegisterSourceOutput(uniqueNamespaces, static (spc, ns) =>
-			{
-				var fileName = string.IsNullOrEmpty(ns) ? "Global" : ns;
-				spc.AddSource($"{fileName}.OneOfThrowHelper.g.cs", SourceText.From(OneOfSourceGenerator.GenerateThrowHelper(ns), Encoding.UTF8));
-			});
+			//context.RegisterSourceOutput(uniqueNamespaces, static (spc, ns) =>
+			//{
+			//	var fileName = string.IsNullOrEmpty(ns) ? "Global" : ns;
+			//	spc.AddSource($"{fileName}.OneOfThrowHelper.g.cs", SourceText.From(OneOfSourceGenerator.GenerateThrowHelper(ns), Encoding.UTF8));
+			//});
 		}
 
 		private static readonly string[] defaultFields = { "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth" };
