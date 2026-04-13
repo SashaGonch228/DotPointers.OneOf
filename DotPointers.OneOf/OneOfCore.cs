@@ -14,27 +14,27 @@ namespace DotPointers.OneOf
 	}
 
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
-	public sealed class GenerateSystemJsonSupportAttribute : Attribute
+	public sealed class GenerateSystemJsonAttribute : Attribute
 	{
-		public GenerateSystemJsonSupportAttribute() { }
+		public GenerateSystemJsonAttribute() { }
 	}
 
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
-	public sealed class GenerateNewtonsoftJsonSupportAttribute : Attribute
+	public sealed class GenerateNewtonsoftJsonAttribute : Attribute
 	{
-		public GenerateNewtonsoftJsonSupportAttribute() { }
+		public GenerateNewtonsoftJsonAttribute() { }
 	}
 
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
-	public sealed class GenerateMemoryPackSupportAttribute : Attribute
+	public sealed class GenerateMemoryPackAttribute : Attribute
 	{
-		public GenerateMemoryPackSupportAttribute() { }
+		public GenerateMemoryPackAttribute() { }
 	}
 
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
-	public sealed class GenerateUnitySupportAttribute : Attribute
+	public sealed class GenerateUnityAttribute : Attribute
 	{
-		public GenerateUnitySupportAttribute() { }
+		public GenerateUnityAttribute() { }
 	}
 
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
@@ -82,4 +82,26 @@ namespace DotPointers.OneOf
 
 	public enum KindPosition { Before, After }
 	public enum KindSize { Byte, Short, Int, Long }
+
+	public readonly struct OneOfMetadata(
+		int count,
+		OneOfLayoutKind layout,
+		int size,
+		bool isFixed,
+		Func<int, Type> typeLookup,
+		Func<int, string> nameLookup)
+	{
+		public readonly int Count = count;
+		public readonly OneOfLayoutKind Layout = layout;
+		public readonly int Size = size;
+		public readonly bool IsFixedSize = isFixed;
+
+		public readonly Func<int, Type> GetTypeAt = typeLookup;
+		public readonly Func<int, string> GetFieldAt = nameLookup;
+	}
+
+	public interface IOneOfMetadata : IOneOf
+	{
+		public OneOfMetadata Metadata { get; }
+	}
 }

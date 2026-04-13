@@ -3,5 +3,6 @@
   <Project Path="DotPointers.OneOf.Generator/DotPointers.OneOf.Generator.csproj" />
   <Project Path="DotPointers.OneOf.Samples/DotPointers.OneOf.Samples.csproj" Id="f7aae55a-0eca-48bc-9f65-5c7efc0009cb" />
   <Project Path="DotPointers.OneOf/DotPointers.OneOf.csproj" />
+  <Project Path="Tests/Tests.csproj" />
   <Project Path="Test/Test.csproj" Id="69e3180a-5dcf-4414-bd55-ad848a99d3b1" />
 </Solution>

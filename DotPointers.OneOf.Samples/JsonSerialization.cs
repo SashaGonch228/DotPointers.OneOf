@@ -7,7 +7,7 @@ public record UserProfile(string Name, int Level);
 public record AnonymousUser(string SessionId);
 
 [GenerateOneOf]
-[GenerateSystemJsonSupport]
+[GenerateSystemJson]
 public partial struct SessionState : IOneOf<UserProfile, AnonymousUser>;
 
 public static class JsonSerialization

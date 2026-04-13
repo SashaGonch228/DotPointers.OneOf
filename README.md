@@ -81,6 +81,7 @@ DotPointers.OneOf supports the most popular serializers out of the box. No custo
 | **MemoryPack** | `[GenerateMemoryPack]` | Ultra-fast binary serialization (1-byte Kind tag + sizeof(current)). |
 | **System.Text.Json** | `[GenerateSystemTextJson]` | Native .NET JSON support. |
 | **Newtonsoft.Json** | `[GenerateNewtonsoftJson]` | Legacy/Advanced JSON support. |
+| **Unity** | `[GenerateUnity]` | Wrapper for unity inspector |
 
 
 ### 🛠 Layout Strategies
@@ -145,7 +146,7 @@ partial struct MyUnion {
 }
 ```
 
-#### 3. Hybrid *(sizeof(IntPtr) + sum(sizeof(T struct)) + 4)*
+#### 4. Hybrid *(sizeof(IntPtr) + sum(sizeof(T struct)) + 4)*
 
 All value types are stored sequentially, and objects are stored in a single object field 
 

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
 
 namespace DotPointers.OneOf.Generator
 {
@@ -67,6 +66,17 @@ namespace DotPointers.OneOf.Generator
 			if (!model.IsRef)
 			{
 				sb.Append($" : IEquatable<{model.FullName}>");
+				if (model.GenerateMetadata)
+				{
+					sb.Append(", IOneOfMetadata");
+				}
+			}
+			else
+			{
+				if (model.GenerateMetadata)
+				{
+					sb.Append(" : IOneOfMetadata");
+				}
 			}
 			sb.AppendLine();
 
@@ -1111,11 +1121,11 @@ namespace DotPointers.OneOf.Generator
 				#endregion
 
 				#region Metadata
-
 				if (model.GenerateMetadata)
 				{
-					GenerateXmlDoc(sb, "Contains structural metadata for the union.");
-					sb.AppendLine("public static class Metadata");
+					sb.AppendLine("public OneOfMetadata Metadata => MetadataInfo.Instance;");
+
+					sb.AppendLine("public static class MetadataInfo");
 					using (sb.EnterScope())
 					{
 						sb.AppendLine($"public const int Count = {count};");
@@ -1123,19 +1133,11 @@ namespace DotPointers.OneOf.Generator
 
 						sb.AppendLine();
 
-						sb.AppendLine($"public static bool IsFixedSize => !RuntimeHelpers.IsReferenceOrContainsReferences<{model.FullName}>();");
-						sb.AppendLine($"public static int Size => Unsafe.SizeOf<{model.FullName}>();");
-
-						sb.AppendLine();
-
 						sb.AppendLine(Inline);
 						sb.AppendLine("public static Type GetTypeAt(int index) => index switch");
 						using (sb.EnterScope(true, ";"))
 						{
-							for (int i = 0; i < count; i++)
-							{
-								sb.AppendLine($"{i} => typeof({model.TypeArgs[i].FullName}),");
-							}
+							for (int i = 0; i < count; i++) sb.AppendLine($"{i} => typeof({model.TypeArgs[i].FullName}),");
 							sb.AppendLine("_ => throw new ArgumentOutOfRangeException(nameof(index))");
 						}
 
@@ -1143,26 +1145,20 @@ namespace DotPointers.OneOf.Generator
 						sb.AppendLine("public static string GetFieldAt(int index) => index switch");
 						using (sb.EnterScope(true, ";"))
 						{
-							for (int i = 0; i < count; i++)
-							{
-								sb.AppendLine($"{i} => \"{model.FieldNames[i]}\",");
-							}
+							for (int i = 0; i < count; i++) sb.AppendLine($"{i} => \"{model.FieldNames[i]}\",");
 							sb.AppendLine("_ => throw new ArgumentOutOfRangeException(nameof(index))");
 						}
 
-						sb.AppendLine(Inline);
-						sb.AppendLine("public static bool IsReferenceAt(int index) => index switch");
-						using (sb.EnterScope(true, ";"))
-						{
-							for (int i = 0; i < count; i++)
-							{
-								sb.AppendLine($"{i} => RuntimeHelpers.IsReferenceOrContainsReferences<{model.TypeArgs[i].FullName}>(),");
-							}
-							sb.AppendLine("_ => throw new ArgumentOutOfRangeException(nameof(index))");
-						}
+						sb.AppendLine("public static readonly OneOfMetadata Instance = new OneOfMetadata(");
+						sb.Increase();
+						sb.AppendLine($"Count, Layout, Unsafe.SizeOf<{model.FullName}>(),");
+						sb.AppendLine($"!RuntimeHelpers.IsReferenceOrContainsReferences<{model.FullName}>(),");
+						sb.AppendLine("GetTypeAt,");
+						sb.AppendLine("GetFieldAt");
+						sb.Decrease();
+						sb.AppendLine(");");
 					}
 				}
-
 				#endregion
 
 				GenerateXmlDoc(sb, $"Defines the possible kinds for the {model.FullName} union.");

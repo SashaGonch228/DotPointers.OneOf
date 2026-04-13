@@ -80,19 +80,19 @@ namespace DotPointers.OneOf.Generator
 			{
 				string? attrFullName = attr.AttributeClass?.ToDisplayString();
 
-				if (attrFullName == "DotPointers.OneOf.GenerateSystemJsonSupportAttribute")
+				if (attrFullName == "DotPointers.OneOf.GenerateSystemJsonAttribute")
 				{
 					serialize |= Serialization.SystemJson;
 				}
-				else if (attrFullName == "DotPointers.OneOf.GenerateNewtonsoftJsonSupportAttribute")
+				else if (attrFullName == "DotPointers.OneOf.GenerateNewtonsoftJsonAttribute")
 				{
 					serialize |= Serialization.NewtonsoftJson;
 				}
-				else if (attrFullName == "DotPointers.OneOf.GenerateMemoryPackSupportAttribute")
+				else if (attrFullName == "DotPointers.OneOf.GenerateMemoryPackAttribute")
 				{
 					serialize |= Serialization.MemoryPack;
 				}
-				else if (attrFullName == "DotPointers.OneOf.GenerateUnitySupportAttribute")
+				else if (attrFullName == "DotPointers.OneOf.GenerateUnityAttribute")
 				{
 					serialize |= Serialization.Unity;
 				}

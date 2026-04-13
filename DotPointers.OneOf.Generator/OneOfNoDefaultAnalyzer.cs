@@ -12,7 +12,7 @@ namespace DotPointers.OneOf.Generator
 		public const string DiagnosticId = "DP0001";
 		private const string Category = "Usage";
 
-		private static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(
+		private static readonly DiagnosticDescriptor Rule = new(
 			DiagnosticId,
 			"Invalid creation of OneOf type",
 			"Type '{0}' does not allow 'default' and 'new()'",
@@ -37,8 +37,10 @@ namespace DotPointers.OneOf.Generator
 		{
 			var objectCreation = (ObjectCreationExpressionSyntax)context.Node;
 
-			if (objectCreation.ArgumentList != null && objectCreation.ArgumentList.Arguments.Count > 0)
+			if (objectCreation.ArgumentList?.Arguments.Count > 0)
+			{
 				return;
+			}
 
 			CheckType(context, objectCreation);
 		}
@@ -47,8 +49,10 @@ namespace DotPointers.OneOf.Generator
 		{
 			var implicitCreation = (ImplicitObjectCreationExpressionSyntax)context.Node;
 
-			if (implicitCreation.ArgumentList != null && implicitCreation.ArgumentList.Arguments.Count > 0)
+			if (implicitCreation.ArgumentList?.Arguments.Count > 0)
+			{
 				return;
+			}
 
 			CheckType(context, implicitCreation);
 		}
@@ -66,36 +70,37 @@ namespace DotPointers.OneOf.Generator
 		private void CheckType(SyntaxNodeAnalysisContext context, SyntaxNode node)
 		{
 			var typeInfo = context.SemanticModel.GetTypeInfo(node);
-			var symbol = typeInfo.Type as INamedTypeSymbol;
 
-			if (symbol == null) return;
+			if (typeInfo.Type is not INamedTypeSymbol symbol) { return; }
 
 			foreach (var attr in symbol.GetAttributes())
 			{
-				if (attr.AttributeClass?.ToDisplayString() == "DotPointers.GenerateOneOfAttribute")
+				if (attr.AttributeClass?.ToDisplayString() != "DotPointers.OneOf.GenerateOneOfAttribute")
 				{
-					bool allowEmpty = true;
-
-					if (attr.ConstructorArguments.Length >= 3)
-					{
-						var arg = attr.ConstructorArguments[2];
-						if (arg.Value is bool val) allowEmpty = val;
-					}
-
-					foreach (var named in attr.NamedArguments)
-					{
-						if (named.Key == "allowEmpty" && named.Value.Value is bool val)
-						{
-							allowEmpty = val;
-						}
-					}
-
-					if (!allowEmpty)
-					{
-						context.ReportDiagnostic(Diagnostic.Create(Rule, node.GetLocation(), symbol.Name));
-					}
-					break;
+					continue;
 				}
+
+				bool allowEmpty = false;
+
+				if (attr.ConstructorArguments.Length >= 2)
+				{
+					var arg = attr.ConstructorArguments[1];
+					if (arg.Value is bool val) { allowEmpty = val; }
+				}
+
+				foreach (var named in attr.NamedArguments)
+				{
+					if (named.Key == "AllowEmpty" && named.Value.Value is bool namedVal)
+					{
+						allowEmpty = namedVal;
+					}
+				}
+
+				if (!allowEmpty)
+				{
+					context.ReportDiagnostic(Diagnostic.Create(Rule, node.GetLocation(), symbol.Name));
+				}
+				break;
 			}
 		}
 	}
