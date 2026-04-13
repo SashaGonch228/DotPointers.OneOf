@@ -48,8 +48,8 @@ public readonly partial struct Range : IOneOf<int, (int, int), Void, Void>
     public bool InRange(int value) => Match(
         s => value == s,
         b => value >= b.Item1 && value <= b.Item2,
-        () => true,
-        () => false
+        _ => true,
+        _ => false
     );
 }
 ```
@@ -64,8 +64,8 @@ Range range = (10, 20);
 range.Switch(
     s => Console.WriteLine($"Point: {s}"),
     b => Console.WriteLine($"Interval: {b.Item1} to {b.Item2}"),
-    () => Console.WriteLine("Matches everything"),
-    () => Console.WriteLine("Empty range")
+    _ => Console.WriteLine("Matches everything"),
+    _ => Console.WriteLine("Empty range")
 );
 ```
 
@@ -164,6 +164,13 @@ partial struct MyUnion {
 ```
 
 ### ⚙ Build-In types
+
+Universal
+
+| Type             | Purpose |
+| ---------------- | ------- |
+| OneOf`<T0, ..., T7>`| Universal union type supporting up to 8 different types. Perfect for general use cases. Uses composition |
+| Void types | Types that reserve a slot but do not occupy memory |
 
 Core Containers
 
