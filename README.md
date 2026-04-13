@@ -212,7 +212,7 @@ Domain & Logic Types
 
 | Method                   | Mean         | Ratio | Code Size | Object size |
 |------------------------- |-------------:|------:|----------:|------------:|
-| mcintyre321 OneOf Create | 490 ms       |  1.00 |     82 B  |        32 B |
+| mcintyre321 OneOf Create | 490 ns       |  1.00 |     82 B  |        32 B |
 | Explicit Create          | **417 ns**   |  0.94 |     90 B  |    **20 B** |
 
 *Object size measured for a Union of 3 value types (GUID, long, int).*

@@ -73,7 +73,7 @@ public class OneOfProductionBenchmark
 
 	[Benchmark(Baseline = true)]
 	[BenchmarkCategory("Access")]
-	public long Match_OneOf_Massive()
+	public long Match_mcintyre321_OneOf_Massive()
 	{
 		long sum = 0;
 		var source = _oneOfArray;
@@ -145,7 +145,7 @@ public class OneOfProductionBenchmark
 
 	[Benchmark]
 	[BenchmarkCategory("Creation")]
-	public OneOf<Guid, long, int>[] Create_OneOf()
+	public OneOf<Guid, long, int>[] Create_mcintyre321_OneOf()
 	{
 		var arr = new OneOf<Guid, long, int>[CreateBatchSize];
 		for (int i = 0; i < CreateBatchSize; i++)
